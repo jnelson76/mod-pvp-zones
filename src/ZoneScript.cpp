@@ -14,6 +14,7 @@
 #include <map>
 #include <time.h>
 #include <vector>
+#include "Log.h"
 
 // hardcoded until i can get a vector using GEtOption
 struct Config
@@ -61,6 +62,8 @@ public:
         config.kill_points        = sConfigMgr->GetOption<uint32>("pvp_zones.KillPoints", false);
         config.event_delay        = sConfigMgr->GetOption<uint32>("pvp_zones.EventDelay", false);
         config.event_lasts        = sConfigMgr->GetOption<uint32>("pvp_zones.EventLasts", false);
+        LOG_INFO("module", "[pvp_zones] Config loaded: enabled=%u, kill_goal=%u, announcement_delay=%f, event_delay=%f",
+            config.enabled, config.kill_goal, config.announcement_delay, config.event_delay);
         // config.zone_ids = sConfigMgr->GetOption<std::vector<uint32>>("pvp_zones.Zones", {});
         //    config.area_ids = sConfigMgr->GetOption<std::vector<uint32>>("pvp_zones.Areas", {});
     }
@@ -155,13 +158,14 @@ public:
     {
         if (config.active)
         {
+            LOG_INFO("module", "[pvp_zones] CreateEvent skipped: already active");
             handler->PSendSysMessage("[pvp_zones] Event already active");
             return;
         }
 
         config.active     = true;
         config.last_event = GameTime::GetGameTime().count();
-
+        LOG_INFO("module", "[pvp_zones] Event starting: last_event=%f", config.last_event);
         auto map_it = std::begin(config.ids);
         std::advance(map_it, rand() % config.ids.size());
 
@@ -170,6 +174,7 @@ public:
 
         config.current_zone = map_it->first;
         config.current_area = *area_it;
+        LOG_INFO("module", "[pvp_zones] Event zone selected: zone=%u, area=%u", config.current_zone, config.current_area);
 
         if (AreaTableEntry const* entry = sAreaTableStore.LookupEntry(config.current_area))
         {
@@ -214,7 +219,12 @@ public:
 
     void OnPVPKill(Player* winner /*killer*/, Player* loser /*killed*/) override
     {
+        LOG_INFO("module", "[pvp_zones] PvP kill detected: winner=%s, loser=%s, zone=%u, area=%u",
+            winner->GetName().c_str(), loser->GetName().c_str(), winner->GetZoneId(), winner->GetAreaId());
 
+        if (!config.active || winner->GetZoneId() != config.current_zone) {
+            LOG_INFO("module", "[pvp_zones] Kill ignored: event inactive or wrong zone");
+       return;
         /* point calculation / checks */
         if (winner->GetAreaId() == config.current_area)
         {
@@ -322,51 +332,51 @@ class ZoneWorld : public WorldScript
 public:
     ZoneWorld() : WorldScript("pvp_zones_World") {}
 
-    void OnUpdate(uint32 /* p_time */) override
-    {
-        if (!config.enabled)
-        {
-            return;
-        }
+    // void OnUpdate(uint32 /* p_time */) override
+    // {
+    //     if (!config.enabled)
+    //     {
+    //         return;
+    //     }
 
-        SessionMap   m_sessions = sWorld->GetAllSessions();
-        Player*      player;
-        ChatHandler* handle;
+    //     SessionMap   m_sessions = sWorld->GetAllSessions();
+    //     Player*      player;
+    //     ChatHandler* handle;
 
-        for (SessionMap::iterator itr = m_sessions.begin(); itr != m_sessions.end(); ++itr)
-        {
-            if (!itr->second || !itr->second->GetPlayer() || !itr->second->GetPlayer()->IsInWorld())
-                continue;
+    //     for (SessionMap::iterator itr = m_sessions.begin(); itr != m_sessions.end(); ++itr)
+    //     {
+    //         if (!itr->second || !itr->second->GetPlayer() || !itr->second->GetPlayer()->IsInWorld())
+    //             continue;
 
-            player = itr->second->GetPlayer();
-        }
+    //         player = itr->second->GetPlayer();
+    //     }
 
-        if (!player)
-        {
-            return;
-        }
+    //     if (!player)
+    //     {
+    //         return;
+    //     }
 
-        handle = new ChatHandler(player->GetSession());
+    //     handle = new ChatHandler(player->GetSession());
 
-        /* create event every x seconds based on config */
-        if (config.last_event + config.event_delay < GameTime::GetGameTime().count())
-        {
-            ZoneLogicScript::CreateEvent(handle);
-        }
+    //     /* create event every x seconds based on config */
+    //     if (config.last_event + config.event_delay < GameTime::GetGameTime().count())
+    //     {
+    //         ZoneLogicScript::CreateEvent(handle);
+    //     }
 
-        /* ends event if event is already running x seconds */
-        if (config.last_event + config.event_lasts < GameTime::GetGameTime().count())
-        {
-            ZoneLogicScript::EndEvent(handle);
-        }
+    //     /* ends event if event is already running x seconds */
+    //     if (config.last_event + config.event_lasts < GameTime::GetGameTime().count())
+    //     {
+    //         ZoneLogicScript::EndEvent(handle);
+    //     }
 
-        /* announcement stuff */
-        if (config.last_announcement + config.announcement_delay <= GameTime::GetGameTime().count())
-        {
-            LOG_INFO("module", "[pvp_zones] Announcement posted");
-            ZoneLogicScript::PostAnnouncement(handle);
-        }
-    }
+    //     /* announcement stuff */
+    //     if (config.last_announcement + config.announcement_delay <= GameTime::GetGameTime().count())
+    //     {
+    //         LOG_INFO("module", "[pvp_zones] Announcement posted");
+    //         ZoneLogicScript::PostAnnouncement(handle);
+    //     }
+    // }
 };
 
 void Addpvp_zonesScripts()
