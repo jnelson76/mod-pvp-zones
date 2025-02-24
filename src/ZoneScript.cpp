@@ -278,11 +278,11 @@ public:
     {
         static Acore::ChatCommands::ChatCommandTable commandTable =
         {
-            { "pvp_zones_on",     HandleOnCommand,     SEC_GAMEMASTER, Console::No },
-            { "pvp_zones_off",    HandleOffCommand,    SEC_GAMEMASTER, Console::No },
-            { "pvp_zones_create", HandleCreateCommand, SEC_GAMEMASTER, Console::No },
-            { "pvp_zones_end",    HandleEndCommand,    SEC_GAMEMASTER, Console::No },
-            { "pvp_zones_debug",  HandleDebugCommand,  SEC_GAMEMASTER, Console::No }
+            { "pvp_zones_on",     HandleOnCommand,     SEC_GAMEMASTER, Acore::ChatCommands::Console::No },
+            { "pvp_zones_off",    HandleOffCommand,    SEC_GAMEMASTER, Acore::ChatCommands::Console::No },
+            { "pvp_zones_create", HandleCreateCommand, SEC_GAMEMASTER, Acore::ChatCommands::Console::No },
+            { "pvp_zones_end",    HandleEndCommand,    SEC_GAMEMASTER, Acore::ChatCommands::Console::No },
+            { "pvp_zones_debug",  HandleDebugCommand,  SEC_GAMEMASTER, Acore::ChatCommands::Console::No }
         };
         return commandTable;
     }
