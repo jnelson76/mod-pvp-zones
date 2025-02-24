@@ -347,19 +347,19 @@ public:
         if (!config.active && config.last_event + config.event_delay < currentTime)
         {
             LOG_INFO("module", "[pvp_zones] Triggering CreateEvent");
-            ChatHandler handler(sWorld->GetDefaultChatHandler());
+            ChatHandler handler(nullptr); // Fallback with null session
             ZoneLogicScript::CreateEvent(&handler);
         }
         if (config.active && config.last_event + config.event_lasts < currentTime)
         {
             LOG_INFO("module", "[pvp_zones] Triggering EndEvent");
-            ChatHandler handler(sWorld->GetDefaultChatHandler());
+            ChatHandler handler(nullptr); // Fallback with null session
             ZoneLogicScript::EndEvent(&handler);
         }
         if (config.last_announcement + config.announcement_delay <= currentTime)
         {
             LOG_INFO("module", "[pvp_zones] Posting announcement");
-            ChatHandler handler(sWorld->GetDefaultChatHandler());
+            ChatHandler handler(nullptr); // Fallback with null session
             ZoneLogicScript::PostAnnouncement(&handler);
         }
     }
