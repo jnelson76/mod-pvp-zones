@@ -49,8 +49,8 @@ struct Config
     float event_delay = 10.0f;
     float event_lasts = 1800.0f;
 
-    // Track killer for loot assignment
-    std::map<ObjectGuid /*loser*/, std::pair<ObjectGuid /*winner*/, uint32 /*points*/>> killData;
+    // Track killer, points, and area for loot assignment
+    std::map<ObjectGuid /*loser*/, std::tuple<ObjectGuid /*winner*/, uint32 /*points*/, uint32 /*area*/>> killData;
 };
 
 Config config;
@@ -288,8 +288,8 @@ public:
             config.points[loser] = 0;
         }
 
-        // Store kill data for loot assignment
-        config.killData[loser->GetGUID()] = {winner->GetGUID(), pointsAwarded};
+        // Store kill data with area for loot assignment
+        config.killData[loser->GetGUID()] = std::make_tuple(winner->GetGUID(), pointsAwarded, winner->GetAreaId());
 
         // Log loser's gear before death
         std::string loserGearMsg = "Loser gear before death: ";
@@ -326,7 +326,11 @@ public:
         auto it = config.killData.find(player->GetGUID());
         if (it != config.killData.end())
         {
-            Player* winner = ObjectAccessor::FindPlayer(it->second.first);
+            ObjectGuid winnerGuid;
+            uint32 pointsAwarded, killArea;
+            std::tie(winnerGuid, pointsAwarded, killArea) = it->second;
+
+            Player* winner = ObjectAccessor::FindPlayer(winnerGuid);
             if (!winner)
             {
                 Log::instance()->outMessage("module", LogLevel::LOG_LEVEL_INFO, "Winner not found for loot assignment");
@@ -334,54 +338,53 @@ public:
                 return;
             }
 
-            uint32 pointsAwarded = it->second.second;
+            // Only add loot if kill was in the event area
+            if (killArea != config.current_area)
+            {
+                Log::instance()->outMessage("module", LogLevel::LOG_LEVEL_INFO, "Kill outside event area (" + std::to_string(killArea) + "), skipping loot");
+                config.killData.erase(it);
+                return;
+            }
+
             Corpse* corpse = player->GetCorpse();
             if (corpse && corpse->IsInWorld())
             {
                 Loot* loot = &corpse->loot;
-                if (!loot->isLooted()) // Only add if not already looted
+                // Force reset loot state
+                loot->clear();
+                loot->FillLoot(0, LootTemplates_Player, winner, true, false, LOOT_CORPSE);
+
+                Log::instance()->outMessage("module", LogLevel::LOG_LEVEL_INFO, "Corpse loot reset, isLooted: " + std::to_string(loot->isLooted()));
+
+                // Add fixed loot item (e.g., Emblem of Frost)
+                LootStoreItem fixedLoot(config.loot_item_id, false, 100.0f, false, 1, 0, config.loot_item_count, config.loot_item_count);
+                loot->AddItem(fixedLoot);
+
+                // Add random gear from loser's equipment
+                std::vector<uint32> equippedItems;
+                for (uint8 slot = EQUIPMENT_SLOT_START; slot < EQUIPMENT_SLOT_END; ++slot)
                 {
-                    // Ensure loot is initialized
-                    if (loot->loot_type == LOOT_NONE)
+                    if (Item* item = player->GetItemByPos(INVENTORY_SLOT_BAG_0, slot))
                     {
-                        loot->clear();
-                        loot->FillLoot(0, LootTemplates_Player, winner, true, false, LOOT_CORPSE);
+                        equippedItems.push_back(item->GetEntry());
                     }
-
-                    // Add fixed loot item (e.g., Emblem of Frost)
-                    LootStoreItem fixedLoot(config.loot_item_id, false, 100.0f, false, 1, 0, config.loot_item_count, config.loot_item_count);
-                    loot->AddItem(fixedLoot);
-
-                    // Add random gear from loser's equipment
-                    std::vector<uint32> equippedItems;
-                    for (uint8 slot = EQUIPMENT_SLOT_START; slot < EQUIPMENT_SLOT_END; ++slot)
-                    {
-                        if (Item* item = player->GetItemByPos(INVENTORY_SLOT_BAG_0, slot))
-                        {
-                            equippedItems.push_back(item->GetEntry());
-                        }
-                    }
-
-                    if (!equippedItems.empty())
-                    {
-                        std::random_device rd;
-                        std::mt19937 gen(rd());
-                        std::uniform_int_distribution<> dis(0, equippedItems.size() - 1);
-                        uint32 randomGearId = equippedItems[dis(gen)];
-                        LootStoreItem gearLoot(randomGearId, false, 100.0f, false, 1, 0, 1, 1);
-                        loot->AddItem(gearLoot);
-                        std::string gearMsg = "Random gear added to corpse: Item " + std::to_string(randomGearId);
-                        Log::instance()->outMessage("module", LogLevel::LOG_LEVEL_INFO, gearMsg.c_str());
-                    }
-
-                    corpse->SetFlag(CORPSE_FIELD_FLAGS, CORPSE_FLAG_LOOTABLE);
-                    std::string lootMsg = "Loot added to corpse: Item " + std::to_string(config.loot_item_id) + ", Count " + std::to_string(config.loot_item_count);
-                    Log::instance()->outMessage("module", LogLevel::LOG_LEVEL_INFO, lootMsg.c_str());
                 }
-                else
+
+                if (!equippedItems.empty())
                 {
-                    Log::instance()->outMessage("module", LogLevel::LOG_LEVEL_INFO, "Corpse already looted, skipping loot addition");
+                    std::random_device rd;
+                    std::mt19937 gen(rd());
+                    std::uniform_int_distribution<> dis(0, equippedItems.size() - 1);
+                    uint32 randomGearId = equippedItems[dis(gen)];
+                    LootStoreItem gearLoot(randomGearId, false, 100.0f, false, 1, 0, 1, 1);
+                    loot->AddItem(gearLoot);
+                    std::string gearMsg = "Random gear added to corpse: Item " + std::to_string(randomGearId);
+                    Log::instance()->outMessage("module", LogLevel::LOG_LEVEL_INFO, gearMsg.c_str());
                 }
+
+                corpse->SetFlag(CORPSE_FIELD_FLAGS, CORPSE_FLAG_LOOTABLE);
+                std::string lootMsg = "Loot added to corpse: Item " + std::to_string(config.loot_item_id) + ", Count " + std::to_string(config.loot_item_count);
+                Log::instance()->outMessage("module", LogLevel::LOG_LEVEL_INFO, lootMsg.c_str());
             }
             else
             {
