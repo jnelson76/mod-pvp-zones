@@ -60,8 +60,8 @@ public:
         config.kill_points = sConfigMgr->GetOption<uint32>("pvp_zones.KillPoints", 10);
         config.event_delay = sConfigMgr->GetOption<float>("pvp_zones.EventDelay", 10.0f);
         config.event_lasts = sConfigMgr->GetOption<float>("pvp_zones.EventLasts", 1800.0f);
-        Log::instance()->Log(LogLevel::LOG_LEVEL_INFO, "module", "Config loaded: enabled=%u, kill_goal=%u, delay=%f",
-                             config.enabled ? 1 : 0, config.kill_goal, config.event_delay);
+        Log::instance()->outMessage("module", LogLevel::LOG_LEVEL_INFO, "Config loaded: enabled=%u, kill_goal=%u, delay=%f",
+                                    config.enabled ? 1 : 0, config.kill_goal, config.event_delay);
     }
 };
 
@@ -76,7 +76,7 @@ public:
         {
             ChatHandler(player->GetSession()).SendSysMessage("You have entered the Oceanic War cffFFFFFFblood zone!");
             config.area_players.push_back(player);
-            Log::instance()->Log(LogLevel::LOG_LEVEL_INFO, "module", "Player %s entered area %u", player->GetName().c_str(), newArea);
+            Log::instance()->outMessage("module", LogLevel::LOG_LEVEL_INFO, "Player %s entered area %u", player->GetName().c_str(), newArea);
         }
         else
         {
@@ -108,13 +108,13 @@ public:
             ChatHandler(player->GetSession()).SendSysMessage("You have entered the Oceanic War cffFFFFFFblood zone!");
             config.zone_players.push_back(player);
             player->UpdatePvP(true, true);
-            Log::instance()->Log(LogLevel::LOG_LEVEL_INFO, "module", "Player %s entered zone %u", player->GetName().c_str(), newZone);
+            Log::instance()->outMessage("module", LogLevel::LOG_LEVEL_INFO, "Player %s entered zone %u", player->GetName().c_str(), newZone);
         }
         else if (isPlayerInZone(player))
         {
             ChatHandler(player->GetSession()).SendSysMessage("You have left the Oceanic War cffFFFFFFblood zone!");
             config.zone_players.erase(std::remove(config.zone_players.begin(), config.zone_players.end(), player), config.zone_players.end());
-            Log::instance()->Log(LogLevel::LOG_LEVEL_INFO, "module", "Player %s left zone %u", player->GetName().c_str(), newZone);
+            Log::instance()->outMessage("module", LogLevel::LOG_LEVEL_INFO, "Player %s left zone %u", player->GetName().c_str(), newZone);
         }
     }
 
@@ -123,7 +123,7 @@ public:
         config.area_players.erase(std::remove(config.area_players.begin(), config.area_players.end(), player), config.area_players.end());
         config.zone_players.erase(std::remove(config.zone_players.begin(), config.zone_players.end(), player), config.zone_players.end());
         config.points.erase(player);
-        Log::instance()->Log(LogLevel::LOG_LEVEL_INFO, "module", "Player %s logged out", player->GetName().c_str());
+        Log::instance()->outMessage("module", LogLevel::LOG_LEVEL_INFO, "Player %s logged out", player->GetName().c_str());
     }
 
     void PostLeaderBoard(ChatHandler* handler)
@@ -131,7 +131,7 @@ public:
         handler->SendGlobalSysMessage("PvP Zones Leaderboard:");
         if (config.points.empty())
         {
-            Log::instance()->Log(LogLevel::LOG_LEVEL_INFO, "module", "Leaderboard empty");
+            Log::instance()->outMessage("module", LogLevel::LOG_LEVEL_INFO, "Leaderboard empty");
             return;
         }
 
@@ -139,21 +139,21 @@ public:
         {
             handler->PSendSysMessage("%s: %u", player.first->GetName().c_str(), player.second);
         }
-        Log::instance()->Log(LogLevel::LOG_LEVEL_INFO, "module", "Leaderboard posted");
+        Log::instance()->outMessage("module", LogLevel::LOG_LEVEL_INFO, "Leaderboard posted");
     }
 
     static void PostAnnouncement(ChatHandler* handler)
     {
         if (!config.active)
         {
-            Log::instance()->Log(LogLevel::LOG_LEVEL_INFO, "module", "Announcement skipped: inactive");
+            Log::instance()->outMessage("module", LogLevel::LOG_LEVEL_INFO, "Announcement skipped: inactive");
             return;
         }
         if (config.last_announcement + config.announcement_delay <= GameTime::GetGameTime().count())
         {
             handler->PSendSysMessage("[pvp_zones] Active in: %s - %s", config.current_zone_name.c_str(), config.current_area_name.c_str());
             config.last_announcement = GameTime::GetGameTime().count();
-            Log::instance()->Log(LogLevel::LOG_LEVEL_INFO, "module", "Announcement posted: %s - %s", config.current_zone_name.c_str(), config.current_area_name.c_str());
+            Log::instance()->outMessage("module", LogLevel::LOG_LEVEL_INFO, "Announcement posted: %s - %s", config.current_zone_name.c_str(), config.current_area_name.c_str());
         }
     }
 
@@ -162,17 +162,17 @@ public:
         if (config.active)
         {
             handler->PSendSysMessage("[pvp_zones] Event already active");
-            Log::instance()->Log(LogLevel::LOG_LEVEL_INFO, "module", "CreateEvent skipped: already active");
+            Log::instance()->outMessage("module", LogLevel::LOG_LEVEL_INFO, "CreateEvent skipped: already active");
             return;
         }
 
         config.active = true;
         config.last_event = GameTime::GetGameTime().count();
-        Log::instance()->Log(LogLevel::LOG_LEVEL_INFO, "module", "Event starting: time=%f", config.last_event);
+        Log::instance()->outMessage("module", LogLevel::LOG_LEVEL_INFO, "Event starting: time=%f", config.last_event);
 
         if (config.ids.empty())
         {
-            Log::instance()->Log(LogLevel::LOG_LEVEL_ERROR, "module", "CreateEvent failed: no zones defined");
+            Log::instance()->outMessage("module", LogLevel::LOG_LEVEL_ERROR, "CreateEvent failed: no zones defined");
             config.active = false;
             return;
         }
@@ -185,7 +185,7 @@ public:
 
         if (map_it->second.empty())
         {
-            Log::instance()->Log(LogLevel::LOG_LEVEL_ERROR, "module", "CreateEvent failed: no areas for zone %u", map_it->first);
+            Log::instance()->outMessage("module", LogLevel::LOG_LEVEL_ERROR, "CreateEvent failed: no areas for zone %u", map_it->first);
             config.active = false;
             return;
         }
@@ -208,8 +208,8 @@ public:
         }
 
         handler->SendGlobalSysMessage(("[pvp_zones] New zone declared: " + config.current_zone_name + " - " + config.current_area_name).c_str());
-        Log::instance()->Log(LogLevel::LOG_LEVEL_INFO, "module", "Event created: zone=%u (%s), area=%u (%s)",
-                             config.current_zone, config.current_zone_name.c_str(), config.current_area, config.current_area_name.c_str());
+        Log::instance()->outMessage("module", LogLevel::LOG_LEVEL_INFO, "Event created: zone=%u (%s), area=%u (%s)",
+                                    config.current_zone, config.current_zone_name.c_str(), config.current_area, config.current_area_name.c_str());
 
         auto players = ObjectAccessor::GetPlayers();
         for (auto& player : players)
@@ -234,17 +234,17 @@ public:
         config.points.clear();
         config.area_players.clear();
         config.zone_players.clear();
-        Log::instance()->Log(LogLevel::LOG_LEVEL_INFO, "module", "Event ended");
+        Log::instance()->outMessage("module", LogLevel::LOG_LEVEL_INFO, "Event ended");
     }
 
     void OnPVPKill(Player* winner, Player* loser) override
     {
-        Log::instance()->Log(LogLevel::LOG_LEVEL_INFO, "module", "PvP kill: winner=%s, loser=%s, zone=%u, area=%u",
-                             winner->GetName().c_str(), loser->GetName().c_str(), winner->GetZoneId(), winner->GetAreaId());
+        Log::instance()->outMessage("module", LogLevel::LOG_LEVEL_INFO, "PvP kill: winner=%s, loser=%s, zone=%u, area=%u",
+                                    winner->GetName().c_str(), loser->GetName().c_str(), winner->GetZoneId(), winner->GetAreaId());
 
         if (!config.active || winner->GetZoneId() != config.current_zone)
         {
-            Log::instance()->Log(LogLevel::LOG_LEVEL_INFO, "module", "Kill ignored: inactive or wrong zone");
+            Log::instance()->outMessage("module", LogLevel::LOG_LEVEL_INFO, "Kill ignored: inactive or wrong zone");
             return;
         }
 
@@ -304,7 +304,7 @@ public:
     {
         config.enabled = true;
         handler->PSendSysMessage("PvP Zones Enabled");
-        Log::instance()->Log(LogLevel::LOG_LEVEL_INFO, "module", "Enabled");
+        Log::instance()->outMessage("module", LogLevel::LOG_LEVEL_INFO, "Enabled");
         return true;
     }
 
@@ -312,29 +312,29 @@ public:
     {
         config.enabled = false;
         handler->PSendSysMessage("PvP Zones Disabled");
-        Log::instance()->Log(LogLevel::LOG_LEVEL_INFO, "module", "Disabled");
+        Log::instance()->outMessage("module", LogLevel::LOG_LEVEL_INFO, "Disabled");
         return true;
     }
 
     static bool HandleCreateCommand(ChatHandler* handler)
     {
-        Log::instance()->Log(LogLevel::LOG_LEVEL_INFO, "module", "Command: Creating event");
+        Log::instance()->outMessage("module", LogLevel::LOG_LEVEL_INFO, "Command: Creating event");
         ZoneLogicScript::CreateEvent(handler);
         return true;
     }
 
     static bool HandleEndCommand(ChatHandler* handler)
     {
-        Log::instance()->Log(LogLevel::LOG_LEVEL_INFO, "module", "Command: Ending event");
+        Log::instance()->outMessage("module", LogLevel::LOG_LEVEL_INFO, "Command: Ending event");
         ZoneLogicScript::EndEvent(handler);
         return true;
     }
 
     static bool HandleDebugCommand(ChatHandler* /* handler */)
     {
-        Log::instance()->Log(LogLevel::LOG_LEVEL_INFO, "module", "Debug: active=%u, area=%s, zone=%s, last_ann=%f, last_event=%f",
-                             config.active ? 1 : 0, config.current_area_name.c_str(), config.current_zone_name.c_str(),
-                             config.last_announcement, config.last_event);
+        Log::instance()->outMessage("module", LogLevel::LOG_LEVEL_INFO, "Debug: active=%u, area=%s, zone=%s, last_ann=%f, last_event=%f",
+                                    config.active ? 1 : 0, config.current_area_name.c_str(), config.current_zone_name.c_str(),
+                                    config.last_announcement, config.last_event);
         return true;
     }
 };
@@ -348,28 +348,28 @@ public:
     {
         if (!config.enabled)
         {
-            Log::instance()->Log(LogLevel::LOG_LEVEL_INFO, "module", "OnUpdate skipped: disabled");
+            Log::instance()->outMessage("module", LogLevel::LOG_LEVEL_INFO, "OnUpdate skipped: disabled");
             return;
         }
 
-        Log::instance()->Log(LogLevel::LOG_LEVEL_INFO, "module", "TESTING UPDATE: active=%u", config.active ? 1 : 0);
+        Log::instance()->outMessage("module", LogLevel::LOG_LEVEL_INFO, "TESTING UPDATE: active=%u", config.active ? 1 : 0);
 
         float currentTime = GameTime::GetGameTime().count();
         if (!config.active && config.last_event + config.event_delay <= currentTime)
         {
-            Log::instance()->Log(LogLevel::LOG_LEVEL_INFO, "module", "Triggering CreateEvent at %f", currentTime);
+            Log::instance()->outMessage("module", LogLevel::LOG_LEVEL_INFO, "Triggering CreateEvent at %f", currentTime);
             ChatHandler handler(nullptr);
             ZoneLogicScript::CreateEvent(&handler);
         }
         if (config.active && config.last_event + config.event_lasts <= currentTime)
         {
-            Log::instance()->Log(LogLevel::LOG_LEVEL_INFO, "module", "Triggering EndEvent at %f", currentTime);
+            Log::instance()->outMessage("module", LogLevel::LOG_LEVEL_INFO, "Triggering EndEvent at %f", currentTime);
             ChatHandler handler(nullptr);
             ZoneLogicScript::EndEvent(&handler);
         }
         if (config.active && config.last_announcement + config.announcement_delay <= currentTime)
         {
-            Log::instance()->Log(LogLevel::LOG_LEVEL_INFO, "module", "Posting announcement at %f", currentTime);
+            Log::instance()->outMessage("module", LogLevel::LOG_LEVEL_INFO, "Posting announcement at %f", currentTime);
             ChatHandler handler(nullptr);
             ZoneLogicScript::PostAnnouncement(&handler);
         }
