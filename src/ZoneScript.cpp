@@ -81,7 +81,7 @@ class ZoneLogicScript : public PlayerScript, WorldScript
 public:
     ZoneLogicScript() : PlayerScript("pvp_zones_PlayerScript"), WorldScript("pvp_zones_WorldScript") {}
 
-    void OnUpdateArea(Player* player, uint32 /* oldArea */, uint32 newArea) override
+    void OnUpdateArea(Player* player, uint32 /*oldArea*/, uint32 newArea) override
     {
         if (config.current_area == newArea)
         {
@@ -109,7 +109,7 @@ public:
         }
     }
 
-    void OnUpdateZone(Player* player, uint32 newZone, uint32 /* new area */) override
+    void OnUpdateZone(Player* player, uint32 newZone, uint32 /*newArea*/) override
     {
         if (config.current_zone == newZone)
         {
@@ -283,12 +283,34 @@ public:
             config.points[loser] = 0;
         }
 
+        // Log loser's gear before loot processing
+        std::string loserGearMsg = "Loser gear before death: ";
+        for (uint8 slot = EQUIPMENT_SLOT_START; slot < EQUIPMENT_SLOT_END; ++slot)
+        {
+            if (Item* item = loser->GetItemByPos(INVENTORY_SLOT_BAG_0, slot))
+            {
+                loserGearMsg += std::to_string(item->GetEntry()) + " ";
+            }
+            else
+            {
+                loserGearMsg += "0 ";
+            }
+        }
+        Log::instance()->outMessage("module", LogLevel::LOG_LEVEL_INFO, loserGearMsg.c_str());
+
         Corpse* corpse = loser->GetCorpse();
         if (corpse && corpse->IsInWorld())
         {
             Loot* loot = &corpse->loot;
             if (!loot->isLooted()) // Only add if not already looted
             {
+                // Ensure loot is initialized
+                if (loot->loot_type == LOOT_NONE)
+                {
+                    loot->clear();
+                    loot->FillLoot(0, LootTemplates_Player, winner, true, false, LOOT_CORPSE);
+                }
+
                 // Add fixed loot item (e.g., Emblem of Frost)
                 LootStoreItem fixedLoot(config.loot_item_id, false, 100.0f, false, 1, 0, config.loot_item_count, config.loot_item_count);
                 loot->AddItem(fixedLoot);
@@ -309,7 +331,7 @@ public:
                     std::mt19937 gen(rd());
                     std::uniform_int_distribution<> dis(0, equippedItems.size() - 1);
                     uint32 randomGearId = equippedItems[dis(gen)];
-                    LootStoreItem gearLoot(randomGearId, false, 100.0f, false, 1, 0, 1, 1); // 100% chance, 1 item
+                    LootStoreItem gearLoot(randomGearId, false, 100.0f, false, 1, 0, 1, 1);
                     loot->AddItem(gearLoot);
                     std::string gearMsg = "Random gear added to corpse: Item " + std::to_string(randomGearId);
                     Log::instance()->outMessage("module", LogLevel::LOG_LEVEL_INFO, gearMsg.c_str());
@@ -319,7 +341,30 @@ public:
                 std::string lootMsg = "Loot added to corpse: Item " + std::to_string(config.loot_item_id) + ", Count " + std::to_string(config.loot_item_count);
                 Log::instance()->outMessage("module", LogLevel::LOG_LEVEL_INFO, lootMsg.c_str());
             }
+            else
+            {
+                Log::instance()->outMessage("module", LogLevel::LOG_LEVEL_INFO, "Corpse already looted, skipping loot addition");
+            }
         }
+        else
+        {
+            Log::instance()->outMessage("module", LogLevel::LOG_LEVEL_INFO, "No valid corpse found for loot");
+        }
+
+        // Log loser's gear after loot processing
+        std::string postGearMsg = "Loser gear after death: ";
+        for (uint8 slot = EQUIPMENT_SLOT_START; slot < EQUIPMENT_SLOT_END; ++slot)
+        {
+            if (Item* item = loser->GetItemByPos(INVENTORY_SLOT_BAG_0, slot))
+            {
+                postGearMsg += std::to_string(item->GetEntry()) + " ";
+            }
+            else
+            {
+                postGearMsg += "0 ";
+            }
+        }
+        Log::instance()->outMessage("module", LogLevel::LOG_LEVEL_INFO, postGearMsg.c_str());
 
         config.kill_goal--;
         ChatHandler winnerHandle(winner->GetSession());
@@ -390,7 +435,7 @@ public:
         return true;
     }
 
-    static bool HandleDebugCommand(ChatHandler* /* handler */)
+    static bool HandleDebugCommand(ChatHandler* /*handler*/)
     {
         std::string debugMsg = "Debug: active=" + std::to_string(config.active ? 1 : 0) +
                                ", area=" + config.current_area_name +
@@ -407,7 +452,7 @@ class ZoneWorld : public WorldScript
 public:
     ZoneWorld() : WorldScript("pvp_zones_World") {}
 
-    void OnUpdate(uint32 /* p_time */) override
+    void OnUpdate(uint32 /*p_time*/) override
     {
         if (!config.enabled)
         {
