@@ -349,10 +349,14 @@ public:
             if (corpse && corpse->IsInWorld())
             {
                 Loot* loot = &corpse->loot;
-                // Force reset and regenerate loot
+                // Log initial state
+                Log::instance()->outMessage("module", LogLevel::LOG_LEVEL_INFO, "Initial corpse loot state, isLooted: " + std::to_string(loot->isLooted()));
+
+                // Force reset loot
                 loot->clear();
-                loot->FillLoot(0, LootTemplates_Player, winner, true, false, LOOT_CORPSE);
-                loot->generate();
+                loot->loot_type = LOOT_CORPSE;
+                loot->lootid = 0;
+                loot->gold = 0;
 
                 Log::instance()->outMessage("module", LogLevel::LOG_LEVEL_INFO, "Corpse loot reset, isLooted: " + std::to_string(loot->isLooted()));
 
