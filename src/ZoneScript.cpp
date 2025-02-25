@@ -77,7 +77,7 @@ public:
     {
         if (config.current_area == newArea)
         {
-            ChatHandler(player->GetSession()).SendSysMessage("You have entered the Oceanic War cffFFFFFFblood zone!");
+            ChatHandler(player->GetSession()).SendSysMessage("You have entered the PVP HOT zone!");
             config.area_players.push_back(player);
             std::string msg = "Player " + player->GetName() + " entered area " + std::to_string(newArea);
             Log::instance()->outMessage("module", LogLevel::LOG_LEVEL_INFO, msg.c_str());
