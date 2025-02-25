@@ -44,6 +44,7 @@ struct Config
     float last_event = 0;
     float event_delay = 10.0f;
     float event_lasts = 1800.0f;
+    float last_test_log = 0.0f; // Added to throttle TESTING UPDATE
 };
 
 Config config;
@@ -365,10 +366,14 @@ public:
             return;
         }
 
-        std::string msg = "TESTING UPDATE: active=" + std::to_string(config.active ? 1 : 0);
-        Log::instance()->outMessage("module", LogLevel::LOG_LEVEL_INFO, msg.c_str());
-
         float currentTime = GameTime::GetGameTime().count();
+        if (currentTime >= config.last_test_log + 1.0f) // Log every second
+        {
+            std::string msg = "TESTING UPDATE: active=" + std::to_string(config.active ? 1 : 0);
+            Log::instance()->outMessage("module", LogLevel::LOG_LEVEL_INFO, msg.c_str());
+            config.last_test_log = currentTime;
+        }
+
         if (!config.active && config.last_event + config.event_delay <= currentTime)
         {
             std::string createMsg = "Triggering CreateEvent at " + std::to_string(currentTime);
