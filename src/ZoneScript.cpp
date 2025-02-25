@@ -43,8 +43,8 @@ struct Config
     float last_announcement = GameTime::GetGameTime().count();
     float announcement_delay = 300.0f; // 5 minutes default
     float last_event = 0;
-    float event_delay = 3600.0f;       // 1 hour default
-    float event_lasts = 1800.0f;       // 30 minutes default
+    float event_delay = 10.0f;        // Reduced to 10 seconds for testing (was 3600.0f)
+    float event_lasts = 1800.0f;      // 30 minutes default
 };
 
 Config config;
@@ -60,7 +60,7 @@ public:
         config.kill_goal = sConfigMgr->GetOption<uint32>("pvp_zones.KillGoal", 100);
         config.announcement_delay = sConfigMgr->GetOption<float>("pvp_zones.AnnouncementDelay", 300.0f);
         config.kill_points = sConfigMgr->GetOption<uint32>("pvp_zones.KillPoints", 10);
-        config.event_delay = sConfigMgr->GetOption<float>("pvp_zones.EventDelay", 3600.0f);
+        config.event_delay = sConfigMgr->GetOption<float>("pvp_zones.EventDelay", 10.0f); // Load from config, default 10s
         config.event_lasts = sConfigMgr->GetOption<float>("pvp_zones.EventLasts", 1800.0f);
         LOG_INFO("module", "[pvp_zones] Config loaded: enabled=%u, kill_goal=%u, announcement_delay=%f, event_delay=%f",
                  config.enabled, config.kill_goal, config.announcement_delay, config.event_delay);
@@ -175,7 +175,7 @@ public:
         if (config.ids.empty())
         {
             LOG_ERROR("module", "[pvp_zones] CreateEvent failed: no zones defined in config.ids");
-            config.active = false; // Reset to prevent further issues
+            config.active = false;
             return;
         }
 
@@ -199,7 +199,6 @@ public:
         config.current_zone = map_it->first;
         config.current_area = *area_it;
 
-        // Use default locale (0) if handler has no session
         uint8 locale = handler->GetSession() ? handler->GetSessionDbcLocale() : 0;
         if (AreaTableEntry const* entry = sAreaTableStore.LookupEntry(config.current_area))
         {
@@ -274,7 +273,7 @@ public:
 
         if (config.kill_goal <= 0)
         {
-            winnerHandle.SendGlobalSysMessage("[pvp_zones] The goal has been reached!");
+            winnerHandle.SendGlobalSysMessage("[pvp_zones] The event has ended: goal reached!");
             EndEvent(&winnerHandle);
         }
 
@@ -356,26 +355,27 @@ public:
             return;
         }
 
+        // Fixed log formatting with actual values
         LOG_INFO("module", "[pvp_zones] OnUpdate running: active=%u, current_zone=%u, current_area=%u",
-                 config.active, config.current_zone, config.current_area);
+                 config.active ? 1 : 0, config.current_zone, config.current_area);
 
         float currentTime = GameTime::GetGameTime().count();
         if (!config.active && config.last_event + config.event_delay < currentTime)
         {
             LOG_INFO("module", "[pvp_zones] Triggering CreateEvent");
-            ChatHandler handler(nullptr); // Fallback with null session
+            ChatHandler handler(nullptr);
             ZoneLogicScript::CreateEvent(&handler);
         }
         if (config.active && config.last_event + config.event_lasts < currentTime)
         {
             LOG_INFO("module", "[pvp_zones] Triggering EndEvent");
-            ChatHandler handler(nullptr); // Fallback with null session
+            ChatHandler handler(nullptr);
             ZoneLogicScript::EndEvent(&handler);
         }
         if (config.last_announcement + config.announcement_delay <= currentTime)
         {
             LOG_INFO("module", "[pvp_zones] Posting announcement");
-            ChatHandler handler(nullptr); // Fallback with null session
+            ChatHandler handler(nullptr);
             ZoneLogicScript::PostAnnouncement(&handler);
         }
     }
