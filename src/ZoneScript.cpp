@@ -12,6 +12,7 @@
 #include "Log.h"
 #include "Corpse.h"
 #include "LootMgr.h"
+#include "WorldSession.h" // For AddDelayedEvent
 #include <algorithm>
 #include <iterator>
 #include <map>
@@ -376,8 +377,8 @@ public:
         }
         Log::instance()->outMessage("module", LogLevel::LOG_LEVEL_INFO, loserGearMsg.c_str());
 
-        // Schedule loot addition 100ms later
-        winner->AddDelayedEvent(100, [this, winner, loser, pointsAwarded]() mutable {
+        // Schedule loot addition 100ms later via WorldSession
+        winner->GetSession()->AddDelayedEvent(100, [this, winner, loser, pointsAwarded]() {
             AddLootToCorpse(winner, loser, pointsAwarded);
         });
 
