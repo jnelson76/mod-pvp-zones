@@ -24,8 +24,9 @@ struct Config
     uint32 kill_goal   = 100;
     uint32 kill_points = 10;
 
-    std::unordered_map<uint32 /* zone */, std::vector<uint32> /* areas */> ids = {{10, {93, 536}}};
-
+    // Changed to Hillsbrad Foothills (267) with Tarren Mill (272)
+    std::unordered_map<uint32 /* zone */, std::vector<uint32> /* areas */> ids = {{267, {272}}};
+    
     uint32 current_zone = 0;
     uint32 current_area = 0;
 
@@ -109,7 +110,7 @@ public:
             {
                 return;
             }
-            ChatHandler(player->GetSession()).SendSysMessage("You have entered the Oceanic War cffFFFFFFblood zone!");
+            ChatHandler(player->GetSession()).SendSysMessage("You have entered the PVP HOT zone!");
             config.zone_players.push_back(player);
             player->UpdatePvP(true, true);
             std::string msg = "Player " + player->GetName() + " entered zone " + std::to_string(newZone);
@@ -117,7 +118,7 @@ public:
         }
         else if (isPlayerInZone(player))
         {
-            ChatHandler(player->GetSession()).SendSysMessage("You have left the Oceanic War cffFFFFFFblood zone!");
+            ChatHandler(player->GetSession()).SendSysMessage("You have left the PVP HOT zone!");
             config.zone_players.erase(std::remove(config.zone_players.begin(), config.zone_players.end(), player), config.zone_players.end());
             std::string msg = "Player " + player->GetName() + " left zone " + std::to_string(newZone);
             Log::instance()->outMessage("module", LogLevel::LOG_LEVEL_INFO, msg.c_str());
@@ -228,7 +229,7 @@ public:
             if (player.second->GetZoneId() == config.current_zone)
             {
                 player.second->SetPvP(true);
-                ChatHandler(player.second->GetSession()).SendSysMessage("You have entered the Oceanic War cffFFFFFFblood zone!");
+                ChatHandler(player.second->GetSession()).SendSysMessage("You have entered the PVP HOT zone!");
                 config.zone_players.push_back(player.second);
             }
             if (player.second->GetAreaId() == config.current_area)
