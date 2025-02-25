@@ -25,8 +25,8 @@ struct Config
     bool   enabled     = true;
     uint32 kill_goal   = 100;
     uint32 kill_points = 10;
-    uint32 loot_item_id = 49426; // Emblem of Frost
-    uint32 loot_item_count = 1;  // Default extra item count
+    uint32 loot_item_id = 49426; // Emblem of Frost as default loot
+    uint32 loot_item_count = 1;  // Default 1 item per kill
 
     std::unordered_map<uint32 /* zone */, std::vector<uint32> /* areas */> ids = {{267, {272}}}; // Tarren Mill
 
@@ -59,14 +59,14 @@ public:
 
     void OnStartup() override
     {
-        config.enabled = sConfigMgr->GetBoolDefault("pvp_zones.Enable", true);
-        config.kill_goal = sConfigMgr->GetIntDefault("pvp_zones.KillGoal", 100);
-        config.announcement_delay = sConfigMgr->GetFloatDefault("pvp_zones.AnnouncementDelay", 300.0f);
-        config.kill_points = sConfigMgr->GetIntDefault("pvp_zones.KillPoints", 10);
-        config.event_delay = sConfigMgr->GetFloatDefault("pvp_zones.EventDelay", 10.0f);
-        config.event_lasts = sConfigMgr->GetFloatDefault("pvp_zones.EventLasts", 1800.0f);
-        config.loot_item_id = sConfigMgr->GetIntDefault("pvp_zones.LootItemId", 49426);
-        config.loot_item_count = sConfigMgr->GetIntDefault("pvp_zones.LootItemCount", 1);
+        config.enabled = sConfigMgr->GetOption<bool>("pvp_zones.Enable", true);
+        config.kill_goal = sConfigMgr->GetOption<uint32>("pvp_zones.KillGoal", 100);
+        config.announcement_delay = sConfigMgr->GetOption<float>("pvp_zones.AnnouncementDelay", 300.0f);
+        config.kill_points = sConfigMgr->GetOption<uint32>("pvp_zones.KillPoints", 10);
+        config.event_delay = sConfigMgr->GetOption<float>("pvp_zones.EventDelay", 10.0f);
+        config.event_lasts = sConfigMgr->GetOption<float>("pvp_zones.EventLasts", 1800.0f);
+        config.loot_item_id = sConfigMgr->GetOption<uint32>("pvp_zones.LootItemId", 49426);
+        config.loot_item_count = sConfigMgr->GetOption<uint32>("pvp_zones.LootItemCount", 1);
         std::string msg = "Config loaded: enabled=" + std::to_string(config.enabled ? 1 : 0) +
                           ", kill_goal=" + std::to_string(config.kill_goal) +
                           ", delay=" + std::to_string(config.event_delay) +
