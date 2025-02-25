@@ -350,15 +350,12 @@ public:
             {
                 Loot* loot = &corpse->loot;
                 // Log initial state
-                Log::instance()->outMessage("module", LogLevel::LOG_LEVEL_INFO, "Initial corpse loot state, isLooted: " + std::to_string(loot->isLooted()));
+                Log::instance()->outMessage("module", LogLevel::LOG_LEVEL_INFO, "Initial corpse loot state, isLooted: " + std::to_string(loot->isLooted()) + ", unlootedCount: " + std::to_string(loot->unlootedCount));
 
                 // Force reset loot
                 loot->clear();
                 loot->loot_type = LOOT_CORPSE;
-                loot->lootid = 0;
                 loot->gold = 0;
-
-                Log::instance()->outMessage("module", LogLevel::LOG_LEVEL_INFO, "Corpse loot reset, isLooted: " + std::to_string(loot->isLooted()));
 
                 // Add fixed loot item (e.g., Emblem of Frost)
                 LootStoreItem fixedLoot(config.loot_item_id, false, 100.0f, false, 1, 0, config.loot_item_count, config.loot_item_count);
@@ -385,6 +382,11 @@ public:
                     std::string gearMsg = "Random gear added to corpse: Item " + std::to_string(randomGearId);
                     Log::instance()->outMessage("module", LogLevel::LOG_LEVEL_INFO, gearMsg.c_str());
                 }
+
+                // Manually set unlootedCount based on items added
+                loot->unlootedCount = loot->items.size();
+
+                Log::instance()->outMessage("module", LogLevel::LOG_LEVEL_INFO, "Corpse loot set, isLooted: " + std::to_string(loot->isLooted()) + ", unlootedCount: " + std::to_string(loot->unlootedCount));
 
                 // Debug loot contents
                 std::string lootContents = "Corpse loot contents: ";
