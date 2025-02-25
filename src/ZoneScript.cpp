@@ -356,6 +356,7 @@ public:
                 loot->clear();
                 loot->loot_type = LOOT_CORPSE;
                 loot->gold = 0;
+                loot->lootOwnerGUID = winner->GetGUID(); // Set winner as loot owner
 
                 // Add fixed loot item (e.g., Emblem of Frost)
                 LootStoreItem fixedLoot(config.loot_item_id, false, 100.0f, false, 1, 0, config.loot_item_count, config.loot_item_count);
@@ -383,8 +384,9 @@ public:
                     Log::instance()->outMessage("module", LogLevel::LOG_LEVEL_INFO, gearMsg.c_str());
                 }
 
-                // Manually set unlootedCount based on items added
+                // Manually set unlootedCount and sync loot
                 loot->unlootedCount = loot->items.size();
+                loot->FillNotNormalLootFor(winner);
 
                 Log::instance()->outMessage("module", LogLevel::LOG_LEVEL_INFO, "Corpse loot set, isLooted: " + std::to_string(loot->isLooted()) + ", unlootedCount: " + std::to_string(loot->unlootedCount));
 
