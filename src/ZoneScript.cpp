@@ -172,11 +172,25 @@ public:
         config.last_event = GameTime::GetGameTime().count();
         LOG_INFO("module", "[pvp_zones] Event starting: last_event=%f", config.last_event);
 
+        if (config.ids.empty())
+        {
+            LOG_ERROR("module", "[pvp_zones] CreateEvent failed: no zones defined in config.ids");
+            config.active = false; // Reset to prevent further issues
+            return;
+        }
+
         std::random_device rd;
         std::mt19937 gen(rd());
         std::uniform_int_distribution<> dis(0, config.ids.size() - 1);
         auto map_it = std::begin(config.ids);
         std::advance(map_it, dis(gen));
+
+        if (map_it->second.empty())
+        {
+            LOG_ERROR("module", "[pvp_zones] CreateEvent failed: no areas defined for zone %u", map_it->first);
+            config.active = false;
+            return;
+        }
 
         std::uniform_int_distribution<> area_dis(0, map_it->second.size() - 1);
         auto area_it = std::begin(map_it->second);
@@ -185,12 +199,14 @@ public:
         config.current_zone = map_it->first;
         config.current_area = *area_it;
 
+        // Use default locale (0) if handler has no session
+        uint8 locale = handler->GetSession() ? handler->GetSessionDbcLocale() : 0;
         if (AreaTableEntry const* entry = sAreaTableStore.LookupEntry(config.current_area))
         {
-            config.current_area_name = entry->area_name[handler->GetSessionDbcLocale()];
+            config.current_area_name = entry->area_name[locale];
             if (AreaTableEntry const* z_entry = sAreaTableStore.LookupEntry(config.current_zone))
             {
-                config.current_zone_name = z_entry->area_name[handler->GetSessionDbcLocale()];
+                config.current_zone_name = z_entry->area_name[locale];
             }
         }
 
