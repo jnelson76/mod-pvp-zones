@@ -12,6 +12,7 @@
 #include "Log.h"
 #include "Corpse.h"
 #include "LootMgr.h"
+#include "World.h" // For sWorld
 #include <algorithm>
 #include <iterator>
 #include <map>
@@ -25,8 +26,8 @@ struct Config
     bool   enabled     = true;
     uint32 kill_goal   = 100;
     uint32 kill_points = 10;
-    uint32 loot_item_id = 49426; // Emblem of Frost as default loot
-    uint32 loot_item_count = 1;  // Default 1 item per kill
+    uint32 loot_item_id = 49426; // Emblem of Frost
+    uint32 loot_item_count = 1;
 
     std::unordered_map<uint32 /* zone */, std::vector<uint32> /* areas */> ids = {{267, {272}}}; // Tarren Mill
 
@@ -256,48 +257,8 @@ public:
         Log::instance()->outMessage("module", LogLevel::LOG_LEVEL_INFO, "Event ended");
     }
 
-    void OnPVPKill(Player* winner, Player* loser) override
+    void AddLootToCorpse(Player* winner, Player* loser, uint32 pointsAwarded)
     {
-        std::string killMsg = "PvP kill: winner=" + winner->GetName() + ", loser=" + loser->GetName() + ", zone=" + std::to_string(winner->GetZoneId()) + ", area=" + std::to_string(winner->GetAreaId());
-        Log::instance()->outMessage("module", LogLevel::LOG_LEVEL_INFO, killMsg.c_str());
-
-        if (!config.active || winner->GetZoneId() != config.current_zone)
-        {
-            Log::instance()->outMessage("module", LogLevel::LOG_LEVEL_INFO, "Kill ignored: inactive or wrong zone");
-            return;
-        }
-
-        uint32 pointsAwarded = config.kill_points;
-        if (winner->GetAreaId() == config.current_area)
-        {
-            pointsAwarded *= 2;
-        }
-
-        config.points[winner] = config.points[winner] + pointsAwarded;
-        if (config.points[loser] >= pointsAwarded)
-        {
-            config.points[loser] -= pointsAwarded;
-        }
-        else
-        {
-            config.points[loser] = 0;
-        }
-
-        // Log loser's gear before loot processing
-        std::string loserGearMsg = "Loser gear before death: ";
-        for (uint8 slot = EQUIPMENT_SLOT_START; slot < EQUIPMENT_SLOT_END; ++slot)
-        {
-            if (Item* item = loser->GetItemByPos(INVENTORY_SLOT_BAG_0, slot))
-            {
-                loserGearMsg += std::to_string(item->GetEntry()) + " ";
-            }
-            else
-            {
-                loserGearMsg += "0 ";
-            }
-        }
-        Log::instance()->outMessage("module", LogLevel::LOG_LEVEL_INFO, loserGearMsg.c_str());
-
         Corpse* corpse = loser->GetCorpse();
         if (corpse && corpse->IsInWorld())
         {
@@ -348,7 +309,7 @@ public:
         }
         else
         {
-            Log::instance()->outMessage("module", LogLevel::LOG_LEVEL_INFO, "No valid corpse found for loot");
+            Log::instance()->outMessage("module", LogLevel::LOG_LEVEL_INFO, "No valid corpse found for loot after delay");
         }
 
         // Log loser's gear after loot processing
@@ -366,23 +327,77 @@ public:
         }
         Log::instance()->outMessage("module", LogLevel::LOG_LEVEL_INFO, postGearMsg.c_str());
 
-        config.kill_goal--;
         ChatHandler winnerHandle(winner->GetSession());
         std::string winnerMsg = "[pvp_zones] You gained " + std::to_string(pointsAwarded) + " point(s) and loot!";
         winnerHandle.PSendSysMessage(winnerMsg.c_str());
         ChatHandler loserHandle(loser->GetSession());
         std::string loserMsg = "[pvp_zones] You lost " + std::to_string(pointsAwarded) + " point(s) and a piece of gear!";
         loserHandle.PSendSysMessage(loserMsg.c_str());
+    }
 
+    void OnPVPKill(Player* winner, Player* loser) override
+    {
+        std::string killMsg = "PvP kill: winner=" + winner->GetName() + ", loser=" + loser->GetName() + ", zone=" + std::to_string(winner->GetZoneId()) + ", area=" + std::to_string(winner->GetAreaId());
+        Log::instance()->outMessage("module", LogLevel::LOG_LEVEL_INFO, killMsg.c_str());
+
+        if (!config.active || winner->GetZoneId() != config.current_zone)
+        {
+            Log::instance()->outMessage("module", LogLevel::LOG_LEVEL_INFO, "Kill ignored: inactive or wrong zone");
+            return;
+        }
+
+        uint32 pointsAwarded = config.kill_points;
+        if (winner->GetAreaId() == config.current_area)
+        {
+            pointsAwarded *= 2;
+        }
+
+        config.points[winner] = config.points[winner] + pointsAwarded;
+        if (config.points[loser] >= pointsAwarded)
+        {
+            config.points[loser] -= pointsAwarded;
+        }
+        else
+        {
+            config.points[loser] = 0;
+        }
+
+        // Log loser's gear before death
+        std::string loserGearMsg = "Loser gear before death: ";
+        for (uint8 slot = EQUIPMENT_SLOT_START; slot < EQUIPMENT_SLOT_END; ++slot)
+        {
+            if (Item* item = loser->GetItemByPos(INVENTORY_SLOT_BAG_0, slot))
+            {
+                loserGearMsg += std::to_string(item->GetEntry()) + " ";
+            }
+            else
+            {
+                loserGearMsg += "0 ";
+            }
+        }
+        Log::instance()->outMessage("module", LogLevel::LOG_LEVEL_INFO, loserGearMsg.c_str());
+
+        // Schedule loot addition 100ms later
+        sWorld->AddTask(winner->GetGUID(), [this, winnerGuid = winner->GetGUID(), loserGuid = loser->GetGUID(), pointsAwarded]() {
+            if (Player* winner = ObjectAccessor::FindPlayer(winnerGuid))
+            {
+                if (Player* loser = ObjectAccessor::FindPlayer(loserGuid))
+                {
+                    AddLootToCorpse(winner, loser, pointsAwarded);
+                }
+            }
+        }, 100);
+
+        config.kill_goal--;
         if (config.kill_goal <= 0)
         {
-            winnerHandle.SendGlobalSysMessage("[pvp_zones] Event ended: goal reached!");
-            EndEvent(&winnerHandle);
+            ChatHandler(winner->GetSession()).SendGlobalSysMessage("[pvp_zones] Event ended: goal reached!");
+            EndEvent(&ChatHandler(winner->GetSession()));
         }
 
         if (config.kill_goal % 5 == 0)
         {
-            PostLeaderBoard(&winnerHandle);
+            PostLeaderBoard(&ChatHandler(winner->GetSession()));
         }
     }
 };
