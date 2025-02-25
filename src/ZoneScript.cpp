@@ -10,6 +10,8 @@
 #include "Player.h"
 #include "ScriptMgr.h"
 #include "Log.h"
+#include "Corpse.h"
+#include "LootMgr.h"
 #include <algorithm>
 #include <iterator>
 #include <map>
@@ -23,10 +25,11 @@ struct Config
     bool   enabled     = true;
     uint32 kill_goal   = 100;
     uint32 kill_points = 10;
+    uint32 loot_item_id = 49426; // Emblem of Frost
+    uint32 loot_item_count = 1;  // Default extra item count
 
-    // Changed to Hillsbrad Foothills (267) with Tarren Mill (272)
-    std::unordered_map<uint32 /* zone */, std::vector<uint32> /* areas */> ids = {{267, {272}}};
-    
+    std::unordered_map<uint32 /* zone */, std::vector<uint32> /* areas */> ids = {{267, {272}}}; // Tarren Mill
+
     uint32 current_zone = 0;
     uint32 current_area = 0;
 
@@ -56,15 +59,19 @@ public:
 
     void OnStartup() override
     {
-        config.enabled = sConfigMgr->GetOption<bool>("pvp_zones.Enable", true);
-        config.kill_goal = sConfigMgr->GetOption<uint32>("pvp_zones.KillGoal", 100);
-        config.announcement_delay = sConfigMgr->GetOption<float>("pvp_zones.AnnouncementDelay", 300.0f);
-        config.kill_points = sConfigMgr->GetOption<uint32>("pvp_zones.KillPoints", 10);
-        config.event_delay = sConfigMgr->GetOption<float>("pvp_zones.EventDelay", 10.0f);
-        config.event_lasts = sConfigMgr->GetOption<float>("pvp_zones.EventLasts", 1800.0f);
+        config.enabled = sConfigMgr->GetBoolDefault("pvp_zones.Enable", true);
+        config.kill_goal = sConfigMgr->GetIntDefault("pvp_zones.KillGoal", 100);
+        config.announcement_delay = sConfigMgr->GetFloatDefault("pvp_zones.AnnouncementDelay", 300.0f);
+        config.kill_points = sConfigMgr->GetIntDefault("pvp_zones.KillPoints", 10);
+        config.event_delay = sConfigMgr->GetFloatDefault("pvp_zones.EventDelay", 10.0f);
+        config.event_lasts = sConfigMgr->GetFloatDefault("pvp_zones.EventLasts", 1800.0f);
+        config.loot_item_id = sConfigMgr->GetIntDefault("pvp_zones.LootItemId", 49426);
+        config.loot_item_count = sConfigMgr->GetIntDefault("pvp_zones.LootItemCount", 1);
         std::string msg = "Config loaded: enabled=" + std::to_string(config.enabled ? 1 : 0) +
                           ", kill_goal=" + std::to_string(config.kill_goal) +
-                          ", delay=" + std::to_string(config.event_delay);
+                          ", delay=" + std::to_string(config.event_delay) +
+                          ", loot_item=" + std::to_string(config.loot_item_id) +
+                          ", loot_count=" + std::to_string(config.loot_item_count);
         Log::instance()->outMessage("module", LogLevel::LOG_LEVEL_INFO, msg.c_str());
     }
 };
@@ -78,7 +85,7 @@ public:
     {
         if (config.current_area == newArea)
         {
-            ChatHandler(player->GetSession()).SendSysMessage("You have entered the PVP HOT zone!");
+            ChatHandler(player->GetSession()).SendSysMessage("You have entered the Oceanic War cffFFFFFFblood zone!");
             config.area_players.push_back(player);
             std::string msg = "Player " + player->GetName() + " entered area " + std::to_string(newArea);
             Log::instance()->outMessage("module", LogLevel::LOG_LEVEL_INFO, msg.c_str());
@@ -110,7 +117,7 @@ public:
             {
                 return;
             }
-            ChatHandler(player->GetSession()).SendSysMessage("You have entered the PVP HOT zone!");
+            ChatHandler(player->GetSession()).SendSysMessage("You have entered the Oceanic War cffFFFFFFblood zone!");
             config.zone_players.push_back(player);
             player->UpdatePvP(true, true);
             std::string msg = "Player " + player->GetName() + " entered zone " + std::to_string(newZone);
@@ -118,7 +125,7 @@ public:
         }
         else if (isPlayerInZone(player))
         {
-            ChatHandler(player->GetSession()).SendSysMessage("You have left the PVP HOT zone!");
+            ChatHandler(player->GetSession()).SendSysMessage("You have left the Oceanic War cffFFFFFFblood zone!");
             config.zone_players.erase(std::remove(config.zone_players.begin(), config.zone_players.end(), player), config.zone_players.end());
             std::string msg = "Player " + player->GetName() + " left zone " + std::to_string(newZone);
             Log::instance()->outMessage("module", LogLevel::LOG_LEVEL_INFO, msg.c_str());
@@ -229,7 +236,7 @@ public:
             if (player.second->GetZoneId() == config.current_zone)
             {
                 player.second->SetPvP(true);
-                ChatHandler(player.second->GetSession()).SendSysMessage("You have entered the PVP HOT zone!");
+                ChatHandler(player.second->GetSession()).SendSysMessage("You have entered the Oceanic War cffFFFFFFblood zone!");
                 config.zone_players.push_back(player.second);
             }
             if (player.second->GetAreaId() == config.current_area)
@@ -276,12 +283,49 @@ public:
             config.points[loser] = 0;
         }
 
+        // Add loot to loser's corpse
+        Corpse* corpse = loser->GetCorpse();
+        if (corpse && corpse->IsInWorld())
+        {
+            Loot* loot = &corpse->loot;
+            if (!loot->isLooted()) // Only add if not already looted
+            {
+                // Add fixed loot item (e.g., Emblem of Frost)
+                loot->AddItem(config.loot_item_id, config.loot_item_count, LOOT_CORPSE);
+
+                // Add random gear from loser's equipment
+                std::vector<uint32> equippedItems;
+                for (uint8 slot = EQUIPMENT_SLOT_START; slot < EQUIPMENT_SLOT_END; ++slot)
+                {
+                    if (Item* item = loser->GetItemByPos(INVENTORY_SLOT_BAG_0, slot))
+                    {
+                        equippedItems.push_back(item->GetEntry());
+                    }
+                }
+
+                if (!equippedItems.empty())
+                {
+                    std::random_device rd;
+                    std::mt19937 gen(rd());
+                    std::uniform_int_distribution<> dis(0, equippedItems.size() - 1);
+                    uint32 randomGearId = equippedItems[dis(gen)];
+                    loot->AddItem(randomGearId, 1, LOOT_CORPSE);
+                    std::string gearMsg = "Random gear added to corpse: Item " + std::to_string(randomGearId);
+                    Log::instance()->outMessage("module", LogLevel::LOG_LEVEL_INFO, gearMsg.c_str());
+                }
+
+                corpse->SetFlag(CORPSE_FIELD_FLAGS, CORPSE_FLAG_LOOTABLE);
+                std::string lootMsg = "Loot added to corpse: Item " + std::to_string(config.loot_item_id) + ", Count " + std::to_string(config.loot_item_count);
+                Log::instance()->outMessage("module", LogLevel::LOG_LEVEL_INFO, lootMsg.c_str());
+            }
+        }
+
         config.kill_goal--;
         ChatHandler winnerHandle(winner->GetSession());
-        std::string winnerMsg = "[pvp_zones] You gained " + std::to_string(pointsAwarded) + " point(s)";
+        std::string winnerMsg = "[pvp_zones] You gained " + std::to_string(pointsAwarded) + " point(s) and loot!";
         winnerHandle.PSendSysMessage(winnerMsg.c_str());
         ChatHandler loserHandle(loser->GetSession());
-        std::string loserMsg = "[pvp_zones] You lost " + std::to_string(pointsAwarded) + " point(s)";
+        std::string loserMsg = "[pvp_zones] You lost " + std::to_string(pointsAwarded) + " point(s) and a piece of gear!";
         loserHandle.PSendSysMessage(loserMsg.c_str());
 
         if (config.kill_goal <= 0)
