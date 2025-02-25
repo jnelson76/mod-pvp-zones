@@ -49,7 +49,6 @@ struct Config
     float event_delay = 10.0f;
     float event_lasts = 1800.0f;
 
-    // Track killer, points, and area for loot assignment
     std::map<ObjectGuid /*loser*/, std::tuple<ObjectGuid /*winner*/, uint32 /*points*/, uint32 /*area*/>> killData;
 };
 
@@ -350,9 +349,10 @@ public:
             if (corpse && corpse->IsInWorld())
             {
                 Loot* loot = &corpse->loot;
-                // Force reset loot state
+                // Force reset and regenerate loot
                 loot->clear();
                 loot->FillLoot(0, LootTemplates_Player, winner, true, false, LOOT_CORPSE);
+                loot->generate();
 
                 Log::instance()->outMessage("module", LogLevel::LOG_LEVEL_INFO, "Corpse loot reset, isLooted: " + std::to_string(loot->isLooted()));
 
@@ -381,6 +381,14 @@ public:
                     std::string gearMsg = "Random gear added to corpse: Item " + std::to_string(randomGearId);
                     Log::instance()->outMessage("module", LogLevel::LOG_LEVEL_INFO, gearMsg.c_str());
                 }
+
+                // Debug loot contents
+                std::string lootContents = "Corpse loot contents: ";
+                for (const auto& item : loot->items)
+                {
+                    lootContents += std::to_string(item.itemid) + " (count: " + std::to_string(item.count) + ") ";
+                }
+                Log::instance()->outMessage("module", LogLevel::LOG_LEVEL_INFO, lootContents.c_str());
 
                 corpse->SetFlag(CORPSE_FIELD_FLAGS, CORPSE_FLAG_LOOTABLE);
                 std::string lootMsg = "Loot added to corpse: Item " + std::to_string(config.loot_item_id) + ", Count " + std::to_string(config.loot_item_count);
