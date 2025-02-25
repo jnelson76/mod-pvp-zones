@@ -319,7 +319,7 @@ public:
         }
     }
 
-    void OnPlayerReleaseSpirit(Player* player, bool /*atGraveyard*/) override
+    void OnPlayerReleasedGhost(Player* player) override
     {
         auto it = config.killData.find(player->GetGUID());
         if (it != config.killData.end())
@@ -383,7 +383,7 @@ public:
             }
             else
             {
-                Log::instance()->outMessage("module", LogLevel::LOG_LEVEL_INFO, "No valid corpse found for loot after spirit release");
+                Log::instance()->outMessage("module", LogLevel::LOG_LEVEL_INFO, "No valid corpse found for loot after ghost release");
             }
 
             // Log loser's gear after loot processing
