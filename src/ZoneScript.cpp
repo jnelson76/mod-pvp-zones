@@ -352,6 +352,9 @@ public:
             return;
         }
 
+        // Simple static log
+        Log::instance()->outMessage("module", LogLevel::LOG_LEVEL_INFO, "STATIC TEST: hello");
+        // Dynamic log with one argument
         Log::instance()->outMessage("module", LogLevel::LOG_LEVEL_INFO, "TESTING UPDATE: active=%u", config.active ? 1 : 0);
 
         float currentTime = GameTime::GetGameTime().count();
