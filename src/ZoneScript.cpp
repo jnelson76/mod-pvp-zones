@@ -309,13 +309,15 @@ public:
         config.kill_goal--;
         if (config.kill_goal <= 0)
         {
-            ChatHandler(winner->GetSession()).SendGlobalSysMessage("[pvp_zones] Event ended: goal reached!");
-            EndEvent(&ChatHandler(winner->GetSession()));
+            ChatHandler handler(winner->GetSession());
+            handler.SendGlobalSysMessage("[pvp_zones] Event ended: goal reached!");
+            EndEvent(&handler);
         }
 
         if (config.kill_goal % 5 == 0)
         {
-            PostLeaderBoard(&ChatHandler(winner->GetSession()));
+            ChatHandler handler(winner->GetSession());
+            PostLeaderBoard(&handler);
         }
     }
 
