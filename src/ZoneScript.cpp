@@ -17,7 +17,7 @@
 #include <vector>
 #include <random>
 
-// Hardcoded until GetOption vector is implemented
+// Hardcoded until GetOption vector is implementedwtf
 struct Config
 {
     bool   enabled     = true;
