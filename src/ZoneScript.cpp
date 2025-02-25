@@ -356,9 +356,9 @@ public:
         }
 
         // Fixed log formatting with actual values
-        LOG_INFO("module", "[pvp_zones] OnUpdate running: active=%u, current_zone=%u, current_area=%u",
+        LOG_INFO("module", "[pvp_zones] TESTINGOnUpdate running: active=%u, current_zone=%u, current_area=%u",
                  config.active ? 1 : 0, config.current_zone, config.current_area);
-
+       
         float currentTime = GameTime::GetGameTime().count();
         if (!config.active && config.last_event + config.event_delay < currentTime)
         {
