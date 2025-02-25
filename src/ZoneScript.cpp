@@ -398,9 +398,9 @@ public:
             }
         }
 
-        // Update loot state
+        // Update loot state and generate for winner
         loot->unlootedCount = loot->items.size();
-        loot->NotifyLootListChanged(corpse->GetGUID(), winner); // Sync loot with winner
+        loot->GenerateLoot(winner); // Generate loot for the winner explicitly
         corpse->SetFlag(CORPSE_FIELD_FLAGS, CORPSE_FLAG_LOOTABLE | CORPSE_FLAG_VISITED); // Ensure lootable
 
         // Debug loot contents
