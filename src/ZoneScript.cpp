@@ -257,4 +257,132 @@ public:
         }
 
         config.points[winner] = config.points[winner] + pointsAwarded;
-        if
+        if (config.points[loser] >= pointsAwarded)
+        {
+            config.points[loser] -= pointsAwarded;
+        }
+        else
+        {
+            config.points[loser] = 0;
+        }
+
+        config.kill_goal--;
+        ChatHandler winnerHandle(winner->GetSession());
+        winnerHandle.PSendSysMessage("[pvp_zones] You gained %u point(s)", pointsAwarded);
+        ChatHandler(loser->GetSession()).PSendSysMessage("[pvp_zones] You lost %u point(s)", pointsAwarded);
+
+        if (config.kill_goal <= 0)
+        {
+            winnerHandle.SendGlobalSysMessage("[pvp_zones] Event ended: goal reached!");
+            EndEvent(&winnerHandle);
+        }
+
+        if (config.kill_goal % 5 == 0)
+        {
+            PostLeaderBoard(&winnerHandle);
+        }
+    }
+};
+
+class ZoneCommands : public CommandScript
+{
+public:
+    ZoneCommands() : CommandScript("pvp_zones_Commands") {}
+
+    Acore::ChatCommands::ChatCommandTable GetCommands() const override
+    {
+        static Acore::ChatCommands::ChatCommandTable commandTable =
+        {
+            { "pvp_zones_on",     HandleOnCommand,     SEC_GAMEMASTER, Acore::ChatCommands::Console::No },
+            { "pvp_zones_off",    HandleOffCommand,    SEC_GAMEMASTER, Acore::ChatCommands::Console::No },
+            { "pvp_zones_create", HandleCreateCommand, SEC_GAMEMASTER, Acore::ChatCommands::Console::No },
+            { "pvp_zones_end",    HandleEndCommand,    SEC_GAMEMASTER, Acore::ChatCommands::Console::No },
+            { "pvp_zones_debug",  HandleDebugCommand,  SEC_GAMEMASTER, Acore::ChatCommands::Console::No }
+        };
+        return commandTable;
+    }
+
+    static bool HandleOnCommand(ChatHandler* handler)
+    {
+        config.enabled = true;
+        handler->PSendSysMessage("PvP Zones Enabled");
+        LOG_INFO("module", "[pvp_zones] Enabled");
+        return true;
+    }
+
+    static bool HandleOffCommand(ChatHandler* handler)
+    {
+        config.enabled = false;
+        handler->PSendSysMessage("PvP Zones Disabled");
+        LOG_INFO("module", "[pvp_zones] Disabled");
+        return true;
+    }
+
+    static bool HandleCreateCommand(ChatHandler* handler)
+    {
+        LOG_INFO("module", "[pvp_zones] Command: Creating event");
+        ZoneLogicScript::CreateEvent(handler);
+        return true;
+    }
+
+    static bool HandleEndCommand(ChatHandler* handler)
+    {
+        LOG_INFO("module", "[pvp_zones] Command: Ending event");
+        ZoneLogicScript::EndEvent(handler);
+        return true;
+    }
+
+    static bool HandleDebugCommand(ChatHandler* /* handler */)
+    {
+        LOG_INFO("module", "[pvp_zones] Debug: active=%u, area=%s, zone=%s, last_ann=%f, last_event=%f",
+                 config.active ? 1 : 0, config.current_area_name.c_str(), config.current_zone_name.c_str(),
+                 config.last_announcement, config.last_event);
+        return true;
+    }
+};
+
+class ZoneWorld : public WorldScript
+{
+public:
+    ZoneWorld() : WorldScript("pvp_zones_World") {}
+
+    void OnUpdate(uint32 /* p_time */) override
+    {
+        if (!config.enabled)
+        {
+            LOG_INFO("module", "[pvp_zones] OnUpdate skipped: disabled");
+            return;
+        }
+
+        // Test with simpler log
+        LOG_INFO("module", "[pvp_zones] TESTING UPDATE: active=%u", config.active ? 1 : 0);
+
+        float currentTime = GameTime::GetGameTime().count();
+        if (!config.active && config.last_event + config.event_delay <= currentTime)
+        {
+            LOG_INFO("module", "[pvp_zones] Triggering CreateEvent at %f", currentTime);
+            ChatHandler handler(nullptr);
+            ZoneLogicScript::CreateEvent(&handler);
+        }
+        if (config.active && config.last_event + config.event_lasts <= currentTime)
+        {
+            LOG_INFO("module", "[pvp_zones] Triggering EndEvent at %f", currentTime);
+            ChatHandler handler(nullptr);
+            ZoneLogicScript::EndEvent(&handler);
+        }
+        if (config.active && config.last_announcement + config.announcement_delay <= currentTime)
+        {
+            LOG_INFO("module", "[pvp_zones] Posting announcement at %f", currentTime);
+            ChatHandler handler(nullptr);
+            ZoneLogicScript::PostAnnouncement(&handler);
+        }
+    }
+};
+
+void Addpvp_zonesScripts()
+{
+    new ZoneWorld();
+    new ZoneConfig();
+    new ZoneLogicScript();
+    new ZoneCommands();
+}
