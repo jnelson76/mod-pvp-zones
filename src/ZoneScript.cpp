@@ -17,7 +17,7 @@
 #include <vector>
 #include <random>
 
-// Hardcoded until GetOption vector is implementedwtf
+// Hardcoded until GetOption vector is implemented
 struct Config
 {
     bool   enabled     = true;
@@ -43,7 +43,7 @@ struct Config
     float last_announcement = GameTime::GetGameTime().count();
     float announcement_delay = 300.0f; // 5 minutes default
     float last_event = 0;
-    float event_delay = 10.0f;        // Reduced to 10 seconds for testing (was 3600.0f)
+    float event_delay = 10.0f;        // 10 seconds for testing
     float event_lasts = 1800.0f;      // 30 minutes default
 };
 
@@ -60,10 +60,10 @@ public:
         config.kill_goal = sConfigMgr->GetOption<uint32>("pvp_zones.KillGoal", 100);
         config.announcement_delay = sConfigMgr->GetOption<float>("pvp_zones.AnnouncementDelay", 300.0f);
         config.kill_points = sConfigMgr->GetOption<uint32>("pvp_zones.KillPoints", 10);
-        config.event_delay = sConfigMgr->GetOption<float>("pvp_zones.EventDelay", 10.0f); // Load from config, default 10s
+        config.event_delay = sConfigMgr->GetOption<float>("pvp_zones.EventDelay", 10.0f);
         config.event_lasts = sConfigMgr->GetOption<float>("pvp_zones.EventLasts", 1800.0f);
-        LOG_INFO("module", "[pvp_zones] Config loaded: enabled=%u, kill_goal=%u, announcement_delay=%f, event_delay=%f",
-                 config.enabled, config.kill_goal, config.announcement_delay, config.event_delay);
+        LOG_INFO("module", "[pvp_zones] Config loaded: enabled=%u, kill_goal=%u, delay=%f",
+                 config.enabled ? 1 : 0, config.kill_goal, config.event_delay);
     }
 };
 
@@ -125,7 +125,7 @@ public:
         config.area_players.erase(std::remove(config.area_players.begin(), config.area_players.end(), player), config.area_players.end());
         config.zone_players.erase(std::remove(config.zone_players.begin(), config.zone_players.end(), player), config.zone_players.end());
         config.points.erase(player);
-        LOG_INFO("module", "[pvp_zones] Player %s logged out, removed from tracking", player->GetName().c_str());
+        LOG_INFO("module", "[pvp_zones] Player %s logged out", player->GetName().c_str());
     }
 
     void PostLeaderBoard(ChatHandler* handler)
@@ -148,12 +148,12 @@ public:
     {
         if (!config.active)
         {
-            LOG_INFO("module", "[pvp_zones] Announcement skipped: event inactive");
+            LOG_INFO("module", "[pvp_zones] Announcement skipped: inactive");
             return;
         }
-        if (config.last_announcement + config.announcement_delay < GameTime::GetGameTime().count())
+        if (config.last_announcement + config.announcement_delay <= GameTime::GetGameTime().count())
         {
-            handler->PSendSysMessage("[pvp_zones] Is currently active in: %s - %s", config.current_zone_name.c_str(), config.current_area_name.c_str());
+            handler->PSendSysMessage("[pvp_zones] Active in: %s - %s", config.current_zone_name.c_str(), config.current_area_name.c_str());
             config.last_announcement = GameTime::GetGameTime().count();
             LOG_INFO("module", "[pvp_zones] Announcement posted: %s - %s", config.current_zone_name.c_str(), config.current_area_name.c_str());
         }
@@ -170,11 +170,11 @@ public:
 
         config.active = true;
         config.last_event = GameTime::GetGameTime().count();
-        LOG_INFO("module", "[pvp_zones] Event starting: last_event=%f", config.last_event);
+        LOG_INFO("module", "[pvp_zones] Event starting: time=%f", config.last_event);
 
         if (config.ids.empty())
         {
-            LOG_ERROR("module", "[pvp_zones] CreateEvent failed: no zones defined in config.ids");
+            LOG_ERROR("module", "[pvp_zones] CreateEvent failed: no zones defined");
             config.active = false;
             return;
         }
@@ -187,7 +187,7 @@ public:
 
         if (map_it->second.empty())
         {
-            LOG_ERROR("module", "[pvp_zones] CreateEvent failed: no areas defined for zone %u", map_it->first);
+            LOG_ERROR("module", "[pvp_zones] CreateEvent failed: no areas for zone %u", map_it->first);
             config.active = false;
             return;
         }
@@ -209,7 +209,7 @@ public:
             }
         }
 
-        handler->SendGlobalSysMessage(("[pvp_zones] A new zone has been declared: " + config.current_zone_name + " - " + config.current_area_name).c_str());
+        handler->SendGlobalSysMessage(("[pvp_zones] New zone declared: " + config.current_zone_name + " - " + config.current_area_name).c_str());
         LOG_INFO("module", "[pvp_zones] Event created: zone=%u (%s), area=%u (%s)",
                  config.current_zone, config.current_zone_name.c_str(), config.current_area, config.current_area_name.c_str());
 
@@ -236,7 +236,7 @@ public:
         config.points.clear();
         config.area_players.clear();
         config.zone_players.clear();
-        LOG_INFO("module", "[pvp_zones] Event ended, state reset");
+        LOG_INFO("module", "[pvp_zones] Event ended");
     }
 
     void OnPVPKill(Player* winner, Player* loser) override
@@ -246,7 +246,7 @@ public:
 
         if (!config.active || winner->GetZoneId() != config.current_zone)
         {
-            LOG_INFO("module", "[pvp_zones] Kill ignored: event inactive or wrong zone");
+            LOG_INFO("module", "[pvp_zones] Kill ignored: inactive or wrong zone");
             return;
         }
 
@@ -257,134 +257,4 @@ public:
         }
 
         config.points[winner] = config.points[winner] + pointsAwarded;
-        if (config.points[loser] >= pointsAwarded)
-        {
-            config.points[loser] -= pointsAwarded;
-        }
-        else
-        {
-            config.points[loser] = 0;
-        }
-
-        config.kill_goal--;
-        ChatHandler winnerHandle(winner->GetSession());
-        winnerHandle.PSendSysMessage("[pvp_zones] You have gained %u PvP point(s)", pointsAwarded);
-        ChatHandler(loser->GetSession()).PSendSysMessage("[pvp_zones] You have lost %u PvP point(s)", pointsAwarded);
-
-        if (config.kill_goal <= 0)
-        {
-            winnerHandle.SendGlobalSysMessage("[pvp_zones] The event has ended: goal reached!");
-            EndEvent(&winnerHandle);
-        }
-
-        if (config.kill_goal % 5 == 0)
-        {
-            PostLeaderBoard(&winnerHandle);
-        }
-    }
-};
-
-class ZoneCommands : public CommandScript
-{
-public:
-    ZoneCommands() : CommandScript("pvp_zones_Commands") {}
-
-    Acore::ChatCommands::ChatCommandTable GetCommands() const override
-    {
-        static Acore::ChatCommands::ChatCommandTable commandTable =
-        {
-            { "pvp_zones_on",     HandleOnCommand,     SEC_GAMEMASTER, Acore::ChatCommands::Console::No },
-            { "pvp_zones_off",    HandleOffCommand,    SEC_GAMEMASTER, Acore::ChatCommands::Console::No },
-            { "pvp_zones_create", HandleCreateCommand, SEC_GAMEMASTER, Acore::ChatCommands::Console::No },
-            { "pvp_zones_end",    HandleEndCommand,    SEC_GAMEMASTER, Acore::ChatCommands::Console::No },
-            { "pvp_zones_debug",  HandleDebugCommand,  SEC_GAMEMASTER, Acore::ChatCommands::Console::No }
-        };
-        return commandTable;
-    }
-
-    static bool HandleOnCommand(ChatHandler* handler)
-    {
-        config.enabled = true;
-        handler->PSendSysMessage("PvP Zones Enabled");
-        LOG_INFO("module", "[pvp_zones] Command: Enabled PvP Zones");
-        return true;
-    }
-
-    static bool HandleOffCommand(ChatHandler* handler)
-    {
-        config.enabled = false;
-        handler->PSendSysMessage("PvP Zones Disabled");
-        LOG_INFO("module", "[pvp_zones] Command: Disabled PvP Zones");
-        return true;
-    }
-
-    static bool HandleCreateCommand(ChatHandler* handler)
-    {
-        LOG_INFO("module", "[pvp_zones] Command: Creating event");
-        ZoneLogicScript::CreateEvent(handler);
-        return true;
-    }
-
-    static bool HandleEndCommand(ChatHandler* handler)
-    {
-        LOG_INFO("module", "[pvp_zones] Command: Ending event");
-        ZoneLogicScript::EndEvent(handler);
-        return true;
-    }
-
-    static bool HandleDebugCommand(ChatHandler* /* handler */)
-    {
-        LOG_INFO("module", "[pvp_zones] Debug: active=%u, area_name=%s, zone_name=%s, last_announcement=%f, last_event=%f, next_announcement=%fs",
-                 config.active, config.current_area_name.c_str(), config.current_zone_name.c_str(),
-                 config.last_announcement, config.last_event,
-                 (config.last_announcement + config.announcement_delay) - GameTime::GetGameTime().count());
-        return true;
-    }
-};
-
-class ZoneWorld : public WorldScript
-{
-public:
-    ZoneWorld() : WorldScript("pvp_zones_World") {}
-
-    void OnUpdate(uint32 /* p_time */) override
-    {
-        if (!config.enabled)
-        {
-            LOG_INFO("module", "[pvp_zones] OnUpdate skipped: module disabled");
-            return;
-        }
-
-        // Fixed log formatting with actual values
-        LOG_INFO("module", "[pvp_zones] TESTINGOnUpdate running: active=%u, current_zone=%u, current_area=%u",
-                 config.active ? 1 : 0, config.current_zone, config.current_area);
-       
-        float currentTime = GameTime::GetGameTime().count();
-        if (!config.active && config.last_event + config.event_delay < currentTime)
-        {
-            LOG_INFO("module", "[pvp_zones] Triggering CreateEvent");
-            ChatHandler handler(nullptr);
-            ZoneLogicScript::CreateEvent(&handler);
-        }
-        if (config.active && config.last_event + config.event_lasts < currentTime)
-        {
-            LOG_INFO("module", "[pvp_zones] Triggering EndEvent");
-            ChatHandler handler(nullptr);
-            ZoneLogicScript::EndEvent(&handler);
-        }
-        if (config.last_announcement + config.announcement_delay <= currentTime)
-        {
-            LOG_INFO("module", "[pvp_zones] Posting announcement");
-            ChatHandler handler(nullptr);
-            ZoneLogicScript::PostAnnouncement(&handler);
-        }
-    }
-};
-
-void Addpvp_zonesScripts()
-{
-    new ZoneWorld();
-    new ZoneConfig();
-    new ZoneLogicScript();
-    new ZoneCommands();
-}
+        if
