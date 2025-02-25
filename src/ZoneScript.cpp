@@ -204,7 +204,7 @@ public:
         if (map_it->second.empty())
         {
             std::string errMsg = "CreateEvent failed: no areas for zone " + std::to_string(map_it->first);
-            Log::instance()->outMessage("module", LogLevel::LOG_LEVEL_ERROR, errMsg.c_str());
+            Log::instance()->outMessage("module", LogLevel::LOG_LEVEL_INFO, errMsg.c_str());
             config.active = false;
             return;
         }
@@ -283,7 +283,6 @@ public:
             config.points[loser] = 0;
         }
 
-        // Add loot to loser's corpse
         Corpse* corpse = loser->GetCorpse();
         if (corpse && corpse->IsInWorld())
         {
@@ -291,7 +290,8 @@ public:
             if (!loot->isLooted()) // Only add if not already looted
             {
                 // Add fixed loot item (e.g., Emblem of Frost)
-                loot->AddItem(config.loot_item_id, config.loot_item_count, LOOT_CORPSE);
+                LootStoreItem fixedLoot(config.loot_item_id, false, 100.0f, 0, 0, config.loot_item_count, config.loot_item_count);
+                loot->AddItem(fixedLoot);
 
                 // Add random gear from loser's equipment
                 std::vector<uint32> equippedItems;
@@ -309,7 +309,8 @@ public:
                     std::mt19937 gen(rd());
                     std::uniform_int_distribution<> dis(0, equippedItems.size() - 1);
                     uint32 randomGearId = equippedItems[dis(gen)];
-                    loot->AddItem(randomGearId, 1, LOOT_CORPSE);
+                    LootStoreItem gearLoot(randomGearId, false, 100.0f, 0, 0, 1, 1); // 100% chance, 1 item
+                    loot->AddItem(gearLoot);
                     std::string gearMsg = "Random gear added to corpse: Item " + std::to_string(randomGearId);
                     Log::instance()->outMessage("module", LogLevel::LOG_LEVEL_INFO, gearMsg.c_str());
                 }
