@@ -323,114 +323,100 @@ public:
     void OnPlayerReleasedGhost(Player* player) override
     {
         auto it = config.killData.find(player->GetGUID());
-        if (it != config.killData.end())
+        if (it == config.killData.end())
+            return;
+
+        ObjectGuid winnerGuid;
+        uint32 pointsAwarded, killArea;
+        std::tie(winnerGuid, pointsAwarded, killArea) = it->second;
+
+        Player* winner = ObjectAccessor::FindPlayer(winnerGuid);
+        if (!winner)
         {
-            ObjectGuid winnerGuid;
-            uint32 pointsAwarded, killArea;
-            std::tie(winnerGuid, pointsAwarded, killArea) = it->second;
-
-            Player* winner = ObjectAccessor::FindPlayer(winnerGuid);
-            if (!winner)
-            {
-                Log::instance()->outMessage("module", LogLevel::LOG_LEVEL_INFO, "Winner not found for loot assignment");
-                config.killData.erase(it);
-                return;
-            }
-
-            // Only add loot if kill was in the event area
-            if (killArea != config.current_area)
-            {
-                Log::instance()->outMessage("module", LogLevel::LOG_LEVEL_INFO, "Kill outside event area (" + std::to_string(killArea) + "), skipping loot");
-                config.killData.erase(it);
-                return;
-            }
-
-            Corpse* corpse = player->GetCorpse();
-            if (corpse && corpse->IsInWorld())
-            {
-                Loot* loot = &corpse->loot;
-                // Log initial state
-                Log::instance()->outMessage("module", LogLevel::LOG_LEVEL_INFO, "Initial corpse loot state, isLooted: " + std::to_string(loot->isLooted()) + ", unlootedCount: " + std::to_string(loot->unlootedCount));
-
-                // Force reset loot
-                loot->clear();
-                loot->loot_type = LOOT_CORPSE;
-                loot->gold = 0;
-                loot->lootOwnerGUID = winner->GetGUID(); // Set winner as loot owner
-
-                // Add fixed loot item (e.g., Emblem of Frost)
-                LootStoreItem fixedLoot(config.loot_item_id, false, 100.0f, false, 1, 0, config.loot_item_count, config.loot_item_count);
-                loot->AddItem(fixedLoot);
-
-                // Add random gear from loser's equipment
-                std::vector<uint32> equippedItems;
-                for (uint8 slot = EQUIPMENT_SLOT_START; slot < EQUIPMENT_SLOT_END; ++slot)
-                {
-                    if (Item* item = player->GetItemByPos(INVENTORY_SLOT_BAG_0, slot))
-                    {
-                        equippedItems.push_back(item->GetEntry());
-                    }
-                }
-
-                if (!equippedItems.empty())
-                {
-                    std::random_device rd;
-                    std::mt19937 gen(rd());
-                    std::uniform_int_distribution<> dis(0, equippedItems.size() - 1);
-                    uint32 randomGearId = equippedItems[dis(gen)];
-                    LootStoreItem gearLoot(randomGearId, false, 100.0f, false, 1, 0, 1, 1);
-                    loot->AddItem(gearLoot);
-                    std::string gearMsg = "Random gear added to corpse: Item " + std::to_string(randomGearId);
-                    Log::instance()->outMessage("module", LogLevel::LOG_LEVEL_INFO, gearMsg.c_str());
-                }
-
-                // Manually set unlootedCount and sync loot
-                loot->unlootedCount = loot->items.size();
-                loot->FillNotNormalLootFor(winner);
-
-                Log::instance()->outMessage("module", LogLevel::LOG_LEVEL_INFO, "Corpse loot set, isLooted: " + std::to_string(loot->isLooted()) + ", unlootedCount: " + std::to_string(loot->unlootedCount));
-
-                // Debug loot contents
-                std::string lootContents = "Corpse loot contents: ";
-                for (const auto& item : loot->items)
-                {
-                    lootContents += std::to_string(item.itemid) + " (count: " + std::to_string(item.count) + ") ";
-                }
-                Log::instance()->outMessage("module", LogLevel::LOG_LEVEL_INFO, lootContents.c_str());
-
-                corpse->SetFlag(CORPSE_FIELD_FLAGS, CORPSE_FLAG_LOOTABLE);
-                std::string lootMsg = "Loot added to corpse: Item " + std::to_string(config.loot_item_id) + ", Count " + std::to_string(config.loot_item_count);
-                Log::instance()->outMessage("module", LogLevel::LOG_LEVEL_INFO, lootMsg.c_str());
-            }
-            else
-            {
-                Log::instance()->outMessage("module", LogLevel::LOG_LEVEL_INFO, "No valid corpse found for loot after ghost release");
-            }
-
-            // Log loser's gear after loot processing
-            std::string postGearMsg = "Loser gear after death: ";
-            for (uint8 slot = EQUIPMENT_SLOT_START; slot < EQUIPMENT_SLOT_END; ++slot)
-            {
-                if (Item* item = player->GetItemByPos(INVENTORY_SLOT_BAG_0, slot))
-                {
-                    postGearMsg += std::to_string(item->GetEntry()) + " ";
-                }
-                else
-                {
-                    postGearMsg += "0 ";
-                }
-            }
-            Log::instance()->outMessage("module", LogLevel::LOG_LEVEL_INFO, postGearMsg.c_str());
-
-            ChatHandler winnerHandle(winner->GetSession());
-            std::string winnerMsg = "[pvp_zones] You gained " + std::to_string(pointsAwarded) + " point(s) and loot!";
-            winnerHandle.PSendSysMessage(winnerMsg.c_str());
-            ChatHandler loserHandle(player->GetSession());
-            std::string loserMsg = "[pvp_zones] You lost " + std::to_string(pointsAwarded) + " point(s) and a piece of gear!";
-            loserHandle.PSendSysMessage(loserMsg.c_str());
-
+            Log::instance()->outMessage("module", LogLevel::LOG_LEVEL_INFO, "Winner not found for loot assignment");
             config.killData.erase(it);
+            return;
         }
+
+        if (killArea != config.current_area)
+        {
+            Log::instance()->outMessage("module", LogLevel::LOG_LEVEL_INFO, "Kill outside event area (" + std::to_string(killArea) + "), skipping loot");
+            config.killData.erase(it);
+            return;
+        }
+
+        Corpse* corpse = player->GetCorpse();
+        if (!corpse || !corpse->IsInWorld())
+        {
+            Log::instance()->outMessage("module", LogLevel::LOG_LEVEL_INFO, "No valid corpse found for loot after ghost release");
+            config.killData.erase(it);
+            return;
+        }
+
+        Loot* loot = &corpse->loot;
+        loot->clear(); // Reset loot
+        loot->loot_type = LOOT_CORPSE;
+        loot->gold = 0;
+        loot->lootOwnerGUID = winner->GetGUID();
+
+        // Add the Emblem of Frost
+        loot->AddItem(LootStoreItem(config.loot_item_id, false, 100.0f, false, 1, 0, config.loot_item_count, config.loot_item_count));
+
+        // Add random gear (create a fresh, unbound instance)
+        std::vector<uint32> equippedItems;
+        for (uint8 slot = EQUIPMENT_SLOT_START; slot < EQUIPMENT_SLOT_END; ++slot)
+        {
+            if (Item* item = player->GetItemByPos(INVENTORY_SLOT_BAG_0, slot))
+            {
+                equippedItems.push_back(item->GetEntry());
+            }
+        }
+
+        if (!equippedItems.empty())
+        {
+            std::random_device rd;
+            std::mt19937 gen(rd());
+            std::uniform_int_distribution<> dis(0, equippedItems.size() - 1);
+            uint32 randomGearId = equippedItems[dis(gen)];
+
+            // Create a new item template instance (unbound)
+            ItemTemplate const* itemTemplate = sObjectMgr->GetItemTemplate(randomGearId);
+            if (itemTemplate)
+            {
+                LootItem gearLoot;
+                gearLoot.itemid = randomGearId;
+                gearLoot.count = 1;
+                gearLoot.randomPropertyId = 0;
+                gearLoot.is_looted = false;
+                gearLoot.needs_quest = false;
+                gearLoot.freeforall = false;
+                gearLoot.follow_loot_rules = false; // Ignore binding rules
+                loot->items.push_back(gearLoot);
+
+                std::string gearMsg = "Random gear added to corpse: Item " + std::to_string(randomGearId);
+                Log::instance()->outMessage("module", LogLevel::LOG_LEVEL_INFO, gearMsg.c_str());
+            }
+        }
+
+        // Update loot state
+        loot->unlootedCount = loot->items.size();
+        loot->NotifyLootListChanged(corpse->GetGUID(), winner); // Sync loot with winner
+        corpse->SetFlag(CORPSE_FIELD_FLAGS, CORPSE_FLAG_LOOTABLE | CORPSE_FLAG_VISITED); // Ensure lootable
+
+        // Debug loot contents
+        std::string lootContents = "Corpse loot contents: ";
+        for (const auto& item : loot->items)
+        {
+            lootContents += std::to_string(item.itemid) + " (count: " + std::to_string(item.count) + ") ";
+        }
+        Log::instance()->outMessage("module", LogLevel::LOG_LEVEL_INFO, lootContents.c_str());
+
+        ChatHandler winnerHandle(winner->GetSession());
+        winnerHandle.PSendSysMessage("[pvp_zones] You gained %u point(s) and loot!", pointsAwarded);
+        ChatHandler loserHandle(player->GetSession());
+        loserHandle.PSendSysMessage("[pvp_zones] You lost %u point(s) and a piece of gear!", pointsAwarded);
+
+        config.killData.erase(it);
     }
 };
 
