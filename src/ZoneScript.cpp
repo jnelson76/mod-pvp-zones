@@ -21,7 +21,7 @@
 struct Config
 {
     bool   enabled     = true;
-    uint32 kill_goal   = 100; // Default back to 100
+    uint32 kill_goal   = 100;
     uint32 kill_points = 10;
 
     std::unordered_map<uint32 /* zone */, std::vector<uint32> /* areas */> ids = {{10, {93, 536}}};
@@ -144,7 +144,8 @@ public:
 
         for (auto& player : config.points)
         {
-            handler->PSendSysMessage("%s: %u", player.first->GetName().c_str(), player.second);
+            std::string msg = player.first->GetName() + ": " + std::to_string(player.second);
+            handler->PSendSysMessage(msg.c_str());
         }
         Log::instance()->outMessage("module", LogLevel::LOG_LEVEL_INFO, "Leaderboard posted");
     }
@@ -276,8 +277,11 @@ public:
 
         config.kill_goal--;
         ChatHandler winnerHandle(winner->GetSession());
-        winnerHandle.PSendSysMessage("[pvp_zones] You gained %u point(s)", pointsAwarded);
-        ChatHandler(loser->GetSession()).PSendSysMessage("[pvp_zones] You lost %u point(s)", pointsAwarded);
+        std::string winnerMsg = "[pvp_zones] You gained " + std::to_string(pointsAwarded) + " point(s)";
+        winnerHandle.PSendSysMessage(winnerMsg.c_str());
+        ChatHandler loserHandle(loser->GetSession());
+        std::string loserMsg = "[pvp_zones] You lost " + std::to_string(pointsAwarded) + " point(s)";
+        loserHandle.PSendSysMessage(loserMsg.c_str());
 
         if (config.kill_goal <= 0)
         {
