@@ -12,7 +12,6 @@
 #include "Log.h"
 #include "Corpse.h"
 #include "LootMgr.h"
-#include "World.h" // For sWorld
 #include <algorithm>
 #include <iterator>
 #include <map>
@@ -378,15 +377,9 @@ public:
         Log::instance()->outMessage("module", LogLevel::LOG_LEVEL_INFO, loserGearMsg.c_str());
 
         // Schedule loot addition 100ms later
-        sWorld->AddTask(winner->GetGUID(), [this, winnerGuid = winner->GetGUID(), loserGuid = loser->GetGUID(), pointsAwarded]() {
-            if (Player* winner = ObjectAccessor::FindPlayer(winnerGuid))
-            {
-                if (Player* loser = ObjectAccessor::FindPlayer(loserGuid))
-                {
-                    AddLootToCorpse(winner, loser, pointsAwarded);
-                }
-            }
-        }, 100);
+        winner->AddDelayedEvent(100, [this, winner, loser, pointsAwarded]() mutable {
+            AddLootToCorpse(winner, loser, pointsAwarded);
+        });
 
         config.kill_goal--;
         if (config.kill_goal <= 0)
