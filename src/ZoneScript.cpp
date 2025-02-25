@@ -290,7 +290,7 @@ public:
             if (!loot->isLooted()) // Only add if not already looted
             {
                 // Add fixed loot item (e.g., Emblem of Frost)
-                LootStoreItem fixedLoot(config.loot_item_id, false, 100.0f, 0, 0, config.loot_item_count, config.loot_item_count);
+                LootStoreItem fixedLoot(config.loot_item_id, false, 100.0f, false, 1, 0, config.loot_item_count, config.loot_item_count);
                 loot->AddItem(fixedLoot);
 
                 // Add random gear from loser's equipment
@@ -309,7 +309,7 @@ public:
                     std::mt19937 gen(rd());
                     std::uniform_int_distribution<> dis(0, equippedItems.size() - 1);
                     uint32 randomGearId = equippedItems[dis(gen)];
-                    LootStoreItem gearLoot(randomGearId, false, 100.0f, 0, 0, 1, 1); // 100% chance, 1 item
+                    LootStoreItem gearLoot(randomGearId, false, 100.0f, false, 1, 0, 1, 1); // 100% chance, 1 item
                     loot->AddItem(gearLoot);
                     std::string gearMsg = "Random gear added to corpse: Item " + std::to_string(randomGearId);
                     Log::instance()->outMessage("module", LogLevel::LOG_LEVEL_INFO, gearMsg.c_str());
