@@ -360,7 +360,8 @@ public:
         loot->lootOwnerGUID = winner->GetGUID();
 
         // Log flags before changes
-        Log::instance()->outMessage("module", LogLevel::LOG_LEVEL_INFO, "Corpse flags before: " + std::to_string(corpse->GetUInt32Value(CORPSE_FIELD_FLAGS)));
+        uint32 initialFlags = corpse->GetUInt32Value(CORPSE_FIELD_FLAGS);
+        Log::instance()->outMessage("module", LogLevel::LOG_LEVEL_INFO, "Corpse flags before: " + std::to_string(initialFlags));
 
         // Add the Emblem of Frost
         LootStoreItem emblemLoot(config.loot_item_id, false, 100.0f, false, 1, 0, config.loot_item_count, config.loot_item_count);
@@ -397,7 +398,7 @@ public:
         // Finalize loot and corpse state
         loot->unlootedCount = loot->items.size();
         loot->FillNotNormalLootFor(winner); // Prepare loot for winner
-        corpse->SetFlag(CORPSE_FIELD_FLAGS, CORPSE_FLAG_LOOTABLE); // Ensure lootable
+        corpse->SetFlag(CORPSE_FIELD_FLAGS, CORPSE_FLAG_LOOTABLE | initialFlags); // Preserve initial flags and add lootable
 
         // Debug loot state
         std::string lootContents = "Corpse loot contents: ";
