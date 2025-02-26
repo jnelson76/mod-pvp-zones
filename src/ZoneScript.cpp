@@ -175,7 +175,6 @@ public:
             winner->AddGameObject(chest);
             chest->SetOwnerGUID(ObjectGuid::Empty); // Allow anyone to loot
             chest->loot.clear(); // Clear default loot
-            chest->SetLootRecipient(winner); // Force ownership to winner
             chest->SetLootState(GO_NOT_READY); // Prevent template regen
 
             // Select and add random gear
