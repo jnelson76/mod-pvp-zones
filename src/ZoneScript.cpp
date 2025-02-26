@@ -49,7 +49,7 @@ struct Config
     float event_delay = 10.0f;
     float event_lasts = 1800.0f;
 
-    std::map<ObjectGuid /*loser*/, std::tuple<ObjectGuid /*winner*/, uint32 /*points*/, uint32 /*area*/>> killData;
+    std::map<ObjectGuid /*loser*/, std::tuple<ObjectGuid /*winner*/, uint32 /*points*/, uint32 /*area*/, uint32 /*gearId*/>> killData;
 };
 
 Config config;
@@ -287,8 +287,31 @@ public:
             config.points[loser] = 0;
         }
 
-        // Store kill data with area for loot assignment
-        config.killData[loser->GetGUID()] = std::make_tuple(winner->GetGUID(), pointsAwarded, winner->GetAreaId());
+        // Select random gear from loser's equipment
+        std::vector<uint32> equippedItems;
+        for (uint8 slot = EQUIPMENT_SLOT_START; slot < EQUIPMENT_SLOT_END; ++slot)
+        {
+            if (Item* item = loser->GetItemByPos(INVENTORY_SLOT_BAG_0, slot))
+            {
+                equippedItems.push_back(item->GetEntry());
+            }
+        }
+
+        uint32 randomGearId = 0;
+        if (!equippedItems.empty())
+        {
+            std::random_device rd;
+            std::mt19937 gen(rd());
+            std::uniform_int_distribution<> dis(0, equippedItems.size() - 1);
+            randomGearId = equippedItems[dis(gen)];
+        }
+        else
+        {
+            randomGearId = 25; // Fallback to Copper Ore if no gear
+        }
+
+        // Store kill data with gear ID
+        config.killData[loser->GetGUID()] = std::make_tuple(winner->GetGUID(), pointsAwarded, winner->GetAreaId(), randomGearId);
 
         // Log loser's gear before death
         std::string loserGearMsg = "Loser gear before death: ";
@@ -327,8 +350,8 @@ public:
             return;
 
         ObjectGuid winnerGuid;
-        uint32 pointsAwarded, killArea;
-        std::tie(winnerGuid, pointsAwarded, killArea) = it->second;
+        uint32 pointsAwarded, killArea, gearId;
+        std::tie(winnerGuid, pointsAwarded, killArea, gearId) = it->second;
 
         Player* winner = ObjectAccessor::FindPlayer(winnerGuid);
         if (!winner)
@@ -363,27 +386,20 @@ public:
         uint32 initialFlags = corpse->GetUInt32Value(CORPSE_FIELD_FLAGS);
         Log::instance()->outMessage("module", LogLevel::LOG_LEVEL_INFO, "Corpse flags before: " + std::to_string(initialFlags));
 
-        // Set lootable flag early
-        corpse->SetUInt32Value(CORPSE_FIELD_FLAGS, initialFlags | CORPSE_FLAG_LOOTABLE);
-        corpse->ForceValuesUpdateAtIndex(CORPSE_FIELD_FLAGS);
-
         // Add the Emblem of Frost
         LootStoreItem emblemLoot(config.loot_item_id, false, 100.0f, false, 1, 0, config.loot_item_count, config.loot_item_count);
         loot->AddItem(emblemLoot);
         Log::instance()->outMessage("module", LogLevel::LOG_LEVEL_INFO, "Emblem of Frost added: " + std::to_string(config.loot_item_id));
 
-        // Add a test unbound item
-        LootStoreItem testLoot(25, false, 100.0f, false, 1, 0, 1, 1); // Copper Ore, unbound
-        loot->AddItem(testLoot);
-        Log::instance()->outMessage("module", LogLevel::LOG_LEVEL_INFO, "Test unbound item added: Item 25");
+        // Add the selected gear or test item
+        LootStoreItem gearLoot(gearId, false, 100.0f, false, 1, 0, 1, 1);
+        loot->AddItem(gearLoot);
+        Log::instance()->outMessage("module", LogLevel::LOG_LEVEL_INFO, "Gear item added: Item " + std::to_string(gearId));
 
         // Finalize loot and corpse state
         loot->unlootedCount = loot->items.size();
         loot->FillNotNormalLootFor(winner); // Prepare loot for winner
-
-        // Reapply lootable flag to counter core override
-        corpse->SetUInt32Value(CORPSE_FIELD_FLAGS, corpse->GetUInt32Value(CORPSE_FIELD_FLAGS) | CORPSE_FLAG_LOOTABLE);
-        corpse->ForceValuesUpdateAtIndex(CORPSE_FIELD_FLAGS);
+        corpse->SetFlag(CORPSE_FIELD_FLAGS, CORPSE_FLAG_LOOTABLE);
 
         // Debug loot state
         std::string lootContents = "Corpse loot contents: ";
