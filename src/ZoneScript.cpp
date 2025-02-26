@@ -180,6 +180,7 @@ public:
         {
             winner->AddGameObject(chest);
             chest->SetOwnerGUID(ObjectGuid::Empty); // Allow anyone to loot
+            chest->loot.clear(); // Clear any default loot
 
             // Add Emblem of Frost
             LootStoreItem emblemLoot(config.loot_item_id, false, 100.0f, false, 1, 0, config.loot_item_count, config.loot_item_count);
@@ -213,6 +214,9 @@ public:
             chest->loot.AddItem(gearLoot);
             Log::instance()->outMessage("module", LogLevel::LOG_LEVEL_INFO, "Gear item added to chest: Item " + std::to_string(randomGearId));
 
+            // Finalize loot state
+            chest->loot.unlootedCount = chest->loot.items.size();
+
             // Debug chest loot state
             std::string lootContents = "Chest loot contents: ";
             for (const auto& item : chest->loot.items)
@@ -220,6 +224,7 @@ public:
                 lootContents += std::to_string(item.itemid) + " (count: " + std::to_string(item.count) + ") ";
             }
             Log::instance()->outMessage("module", LogLevel::LOG_LEVEL_INFO, lootContents.c_str());
+            Log::instance()->outMessage("module", LogLevel::LOG_LEVEL_INFO, "Chest loot finalized, unlootedCount: " + std::to_string(chest->loot.unlootedCount));
         }
         else
         {
