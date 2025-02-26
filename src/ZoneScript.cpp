@@ -368,37 +368,14 @@ public:
         loot->AddItem(emblemLoot);
         Log::instance()->outMessage("module", LogLevel::LOG_LEVEL_INFO, "Emblem of Frost added: " + std::to_string(config.loot_item_id));
 
-        // Add random gear
-        std::vector<uint32> equippedItems;
-        for (uint8 slot = EQUIPMENT_SLOT_START; slot < EQUIPMENT_SLOT_END; ++slot)
-        {
-            if (Item* item = player->GetItemByPos(INVENTORY_SLOT_BAG_0, slot))
-            {
-                equippedItems.push_back(item->GetEntry());
-            }
-        }
-
-        if (!equippedItems.empty())
-        {
-            std::random_device rd;
-            std::mt19937 gen(rd());
-            std::uniform_int_distribution<> dis(0, equippedItems.size() - 1);
-            uint32 randomGearId = equippedItems[dis(gen)];
-
-            ItemTemplate const* itemTemplate = sObjectMgr->GetItemTemplate(randomGearId);
-            if (itemTemplate)
-            {
-                LootStoreItem gearLoot(randomGearId, false, 100.0f, false, 1, 0, 1, 1);
-                loot->AddItem(gearLoot);
-                std::string gearMsg = "Random gear added to corpse: Item " + std::to_string(randomGearId);
-                Log::instance()->outMessage("module", LogLevel::LOG_LEVEL_INFO, gearMsg.c_str());
-            }
-        }
+        // Add a test unbound item instead of random gear
+        LootStoreItem testLoot(25, false, 100.0f, false, 1, 0, 1, 1); // Copper Ore, unbound
+        loot->AddItem(testLoot);
+        Log::instance()->outMessage("module", LogLevel::LOG_LEVEL_INFO, "Test unbound item added: Item 25");
 
         // Finalize loot and corpse state
         loot->unlootedCount = loot->items.size();
         loot->FillNotNormalLootFor(winner); // Prepare loot for winner
-        corpse->SetFlag(CORPSE_FIELD_FLAGS, CORPSE_FLAG_LOOTABLE | initialFlags); // Preserve initial flags and add lootable
 
         // Debug loot state
         std::string lootContents = "Corpse loot contents: ";
