@@ -26,9 +26,7 @@ struct Config
     bool   enabled     = true;
     uint32 kill_goal   = 100;
     uint32 kill_points = 10;
-    uint32 loot_item_id = 49426; // Emblem of Frost
-    uint32 loot_item_count = 1;
-    uint32 chest_id = 179697; // Chest GameObject ID
+    uint32 chest_id = 179697; // Small Locked Chest
     uint32 chest_despawn = 120; // Chest despawn time in seconds
 
     std::unordered_map<uint32 /* zone */, std::vector<uint32> /* areas */> ids = {{267, {272}}}; // Tarren Mill
@@ -68,15 +66,11 @@ public:
         config.kill_points = sConfigMgr->GetOption<uint32>("pvp_zones.KillPoints", 10);
         config.event_delay = sConfigMgr->GetOption<float>("pvp_zones.EventDelay", 10.0f);
         config.event_lasts = sConfigMgr->GetOption<float>("pvp_zones.EventLasts", 1800.0f);
-        config.loot_item_id = sConfigMgr->GetOption<uint32>("pvp_zones.LootItemId", 49426);
-        config.loot_item_count = sConfigMgr->GetOption<uint32>("pvp_zones.LootItemCount", 1);
         config.chest_id = sConfigMgr->GetOption<uint32>("pvp_zones.ChestID", 179697);
         config.chest_despawn = sConfigMgr->GetOption<uint32>("pvp_zones.ChestTimer", 120);
         std::string msg = "Config loaded: enabled=" + std::to_string(config.enabled ? 1 : 0) +
                           ", kill_goal=" + std::to_string(config.kill_goal) +
                           ", delay=" + std::to_string(config.event_delay) +
-                          ", loot_item=" + std::to_string(config.loot_item_id) +
-                          ", loot_count=" + std::to_string(config.loot_item_count) +
                           ", chest_id=" + std::to_string(config.chest_id) +
                           ", chest_despawn=" + std::to_string(config.chest_despawn);
         Log::instance()->outMessage("module", LogLevel::LOG_LEVEL_INFO, msg.c_str());
@@ -180,12 +174,8 @@ public:
         {
             winner->AddGameObject(chest);
             chest->SetOwnerGUID(ObjectGuid::Empty); // Allow anyone to loot
-            chest->loot.clear(); // Clear any default loot
-
-            // Add Emblem of Frost
-            LootStoreItem emblemLoot(config.loot_item_id, false, 100.0f, false, 1, 0, config.loot_item_count, config.loot_item_count);
-            chest->loot.AddItem(emblemLoot);
-            Log::instance()->outMessage("module", LogLevel::LOG_LEVEL_INFO, "Emblem of Frost added to chest: " + std::to_string(config.loot_item_id));
+            chest->loot.clear(); // Clear default loot
+            chest->SetLootState(GO_NOT_READY); // Prevent template regen
 
             // Select and add random gear
             std::vector<uint32> equippedItems;
@@ -216,6 +206,7 @@ public:
 
             // Finalize loot state
             chest->loot.unlootedCount = chest->loot.items.size();
+            chest->SetLootState(GO_READY); // Mark as lootable
 
             // Debug chest loot state
             std::string lootContents = "Chest loot contents: ";
