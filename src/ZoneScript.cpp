@@ -244,43 +244,9 @@ public:
         }
     }
 
-    void OnPlayerReleasedGhost(Player* player) override
+    void OnPlayerReleasedGhost(Player* /*player*/) override
     {
-        // No longer needed for loot setup, but kept for cleanup
-    }
-
-private:
-    void PostLeaderBoard(ChatHandler* handler)
-    {
-        handler->SendGlobalSysMessage("PvP Zones Leaderboard:");
-        if (config.points.empty())
-        {
-            Log::instance()->outMessage("module", LogLevel::LOG_LEVEL_INFO, "Leaderboard empty");
-            return;
-        }
-
-        for (auto& player : config.points)
-        {
-            std::string msg = player.first->GetName() + ": " + std::to_string(player.second);
-            handler->PSendSysMessage(msg.c_str());
-        }
-        Log::instance()->outMessage("module", LogLevel::LOG_LEVEL_INFO, "Leaderboard posted");
-    }
-
-    static void PostAnnouncement(ChatHandler* handler)
-    {
-        if (!config.active)
-        {
-            Log::instance()->outMessage("module", LogLevel::LOG_LEVEL_INFO, "Announcement skipped: inactive");
-            return;
-        }
-        if (config.last_announcement + config.announcement_delay <= GameTime::GetGameTime().count())
-        {
-            handler->PSendSysMessage("[pvp_zones] Active in: %s - %s", config.current_zone_name.c_str(), config.current_area_name.c_str());
-            config.last_announcement = GameTime::GetGameTime().count();
-            std::string msg = "Announcement posted: " + config.current_zone_name + " - " + config.current_area_name;
-            Log::instance()->outMessage("module", LogLevel::LOG_LEVEL_INFO, msg.c_str());
-        }
+        // No longer needed for loot setup
     }
 
     static void CreateEvent(ChatHandler* handler)
@@ -363,6 +329,40 @@ private:
         config.area_players.clear();
         config.zone_players.clear();
         Log::instance()->outMessage("module", LogLevel::LOG_LEVEL_INFO, "Event ended");
+    }
+
+    static void PostAnnouncement(ChatHandler* handler)
+    {
+        if (!config.active)
+        {
+            Log::instance()->outMessage("module", LogLevel::LOG_LEVEL_INFO, "Announcement skipped: inactive");
+            return;
+        }
+        if (config.last_announcement + config.announcement_delay <= GameTime::GetGameTime().count())
+        {
+            handler->PSendSysMessage("[pvp_zones] Active in: %s - %s", config.current_zone_name.c_str(), config.current_area_name.c_str());
+            config.last_announcement = GameTime::GetGameTime().count();
+            std::string msg = "Announcement posted: " + config.current_zone_name + " - " + config.current_area_name;
+            Log::instance()->outMessage("module", LogLevel::LOG_LEVEL_INFO, msg.c_str());
+        }
+    }
+
+private:
+    void PostLeaderBoard(ChatHandler* handler)
+    {
+        handler->SendGlobalSysMessage("PvP Zones Leaderboard:");
+        if (config.points.empty())
+        {
+            Log::instance()->outMessage("module", LogLevel::LOG_LEVEL_INFO, "Leaderboard empty");
+            return;
+        }
+
+        for (auto& player : config.points)
+        {
+            std::string msg = player.first->GetName() + ": " + std::to_string(player.second);
+            handler->PSendSysMessage(msg.c_str());
+        }
+        Log::instance()->outMessage("module", LogLevel::LOG_LEVEL_INFO, "Leaderboard posted");
     }
 };
 
