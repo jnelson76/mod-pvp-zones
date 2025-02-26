@@ -395,6 +395,8 @@ public:
         loot->unlootedCount = loot->items.size();
         corpse->RemoveFlag(CORPSE_FIELD_FLAGS, 0xFFFFFFFF); // Clear all flags
         corpse->SetFlag(CORPSE_FIELD_FLAGS, CORPSE_FLAG_LOOTABLE); // Ensure lootable
+        corpse->SetUInt32Value(CORPSE_FIELD_FLAGS, CORPSE_FLAG_LOOTABLE); // Force the flag directly
+        corpse->ForceValuesUpdateAtIndex(CORPSE_FIELD_FLAGS); // Sync flag change to client
 
         // Debug loot state
         std::string lootContents = "Corpse loot contents: ";
@@ -403,7 +405,7 @@ public:
             lootContents += std::to_string(item.itemid) + " (count: " + std::to_string(item.count) + ") ";
         }
         Log::instance()->outMessage("module", LogLevel::LOG_LEVEL_INFO, lootContents.c_str());
-        Log::instance()->outMessage("module", LogLevel::LOG_LEVEL_INFO, "Corpse flags: " + std::to_string(corpse->GetUInt32Value(CORPSE_FIELD_FLAGS)) + ", unlootedCount: " + std::to_string(loot->unlootedCount));
+        Log::instance()->outMessage("module", LogLevel::LOG_LEVEL_INFO, "Corpse flags after set: " + std::to_string(corpse->GetUInt32Value(CORPSE_FIELD_FLAGS)) + ", unlootedCount: " + std::to_string(loot->unlootedCount));
 
         ChatHandler winnerHandle(winner->GetSession());
         winnerHandle.PSendSysMessage("[pvp_zones] You gained %u point(s) and loot!", pointsAwarded);
