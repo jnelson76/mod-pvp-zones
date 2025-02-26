@@ -359,6 +359,9 @@ public:
         loot->gold = 0;
         loot->lootOwnerGUID = winner->GetGUID();
 
+        // Log flags before changes
+        Log::instance()->outMessage("module", LogLevel::LOG_LEVEL_INFO, "Corpse flags before: " + std::to_string(corpse->GetUInt32Value(CORPSE_FIELD_FLAGS)));
+
         // Add the Emblem of Frost
         LootStoreItem emblemLoot(config.loot_item_id, false, 100.0f, false, 1, 0, config.loot_item_count, config.loot_item_count);
         loot->AddItem(emblemLoot);
@@ -393,10 +396,8 @@ public:
 
         // Finalize loot and corpse state
         loot->unlootedCount = loot->items.size();
-        corpse->RemoveFlag(CORPSE_FIELD_FLAGS, 0xFFFFFFFF); // Clear all flags
+        loot->FillNotNormalLootFor(winner); // Prepare loot for winner
         corpse->SetFlag(CORPSE_FIELD_FLAGS, CORPSE_FLAG_LOOTABLE); // Ensure lootable
-        corpse->SetUInt32Value(CORPSE_FIELD_FLAGS, CORPSE_FLAG_LOOTABLE); // Force the flag directly
-        corpse->ForceValuesUpdateAtIndex(CORPSE_FIELD_FLAGS); // Sync flag change to client
 
         // Debug loot state
         std::string lootContents = "Corpse loot contents: ";
