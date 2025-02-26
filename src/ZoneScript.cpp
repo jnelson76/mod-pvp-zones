@@ -49,7 +49,7 @@ struct Config
     float event_delay = 10.0f;
     float event_lasts = 1800.0f;
 
-    std::map<ObjectGuid /*loser*/, std::tuple<ObjectGuid /*winner*/, uint32 /*points*/, uint32 /*area*/>> killData;
+    std::map<ObjectGuid /*loser*/, std::tuple<ObjectGuid /*winner*/, uint32 /*points», uint32 /*area*/>> killData;
 };
 
 Config config;
@@ -368,7 +368,7 @@ public:
         loot->AddItem(emblemLoot);
         Log::instance()->outMessage("module", LogLevel::LOG_LEVEL_INFO, "Emblem of Frost added: " + std::to_string(config.loot_item_id));
 
-        // Add a test unbound item instead of random gear
+        // Add a test unbound item
         LootStoreItem testLoot(25, false, 100.0f, false, 1, 0, 1, 1); // Copper Ore, unbound
         loot->AddItem(testLoot);
         Log::instance()->outMessage("module", LogLevel::LOG_LEVEL_INFO, "Test unbound item added: Item 25");
@@ -376,6 +376,8 @@ public:
         // Finalize loot and corpse state
         loot->unlootedCount = loot->items.size();
         loot->FillNotNormalLootFor(winner); // Prepare loot for winner
+        corpse->SetUInt32Value(CORPSE_FIELD_FLAGS, initialFlags | CORPSE_FLAG_LOOTABLE); // Force lootable flag with initial state
+        corpse->ForceValuesUpdateAtIndex(CORPSE_FIELD_FLAGS); // Sync to client
 
         // Debug loot state
         std::string lootContents = "Corpse loot contents: ";
