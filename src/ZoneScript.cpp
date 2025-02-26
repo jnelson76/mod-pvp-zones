@@ -49,7 +49,7 @@ struct Config
     float event_delay = 10.0f;
     float event_lasts = 1800.0f;
 
-    std::map<ObjectGuid /*loser*/, std::tuple<ObjectGuid /*winner*/, uint32 /*points», uint32 /*area*/>> killData;
+    std::map<ObjectGuid /*loser*/, std::tuple<ObjectGuid /*winner*/, uint32 /*points*/, uint32 /*area*/>> killData;
 };
 
 Config config;
