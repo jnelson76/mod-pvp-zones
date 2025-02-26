@@ -175,6 +175,7 @@ public:
             winner->AddGameObject(chest);
             chest->SetOwnerGUID(ObjectGuid::Empty); // Allow anyone to loot
             chest->loot.clear(); // Clear default loot
+            chest->SetLootRecipient(winner); // Force ownership to winner
             chest->SetLootState(GO_NOT_READY); // Prevent template regen
 
             // Select and add random gear
@@ -206,6 +207,7 @@ public:
 
             // Finalize loot state
             chest->loot.unlootedCount = chest->loot.items.size();
+            chest->FillLoot(&chest->loot, LootTemplates_Gameobject, winner, true, false, LOOT_MODE_DEFAULT); // Lock our loot
             chest->SetLootState(GO_READY); // Mark as lootable
 
             // Debug chest loot state
@@ -215,7 +217,7 @@ public:
                 lootContents += std::to_string(item.itemid) + " (count: " + std::to_string(item.count) + ") ";
             }
             Log::instance()->outMessage("module", LogLevel::LOG_LEVEL_INFO, lootContents.c_str());
-            Log::instance()->outMessage("module", LogLevel::LOG_LEVEL_INFO, "Chest loot finalized, unlootedCount: " + std::to_string(chest->loot.unlootedCount));
+            Log::instance()->outMessage("module", LogLevel::LOG_LEVEL_INFO, "Chest loot finalized, unlootedCount: " + std::to_string(chest->loot.unlootedCount) + ", state: " + std::to_string(chest->GetLootState()));
         }
         else
         {
