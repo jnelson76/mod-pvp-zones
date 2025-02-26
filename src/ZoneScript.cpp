@@ -360,7 +360,8 @@ public:
         loot->lootOwnerGUID = winner->GetGUID();
 
         // Add the Emblem of Frost
-        loot->AddItem(LootStoreItem(config.loot_item_id, false, 100.0f, false, 1, 0, config.loot_item_count, config.loot_item_count));
+        LootStoreItem emblemLoot(config.loot_item_id, false, 100.0f, false, 1, 0, config.loot_item_count, config.loot_item_count);
+        loot->AddItem(emblemLoot);
 
         // Add random gear (create a fresh, unbound instance)
         std::vector<uint32> equippedItems;
@@ -379,7 +380,6 @@ public:
             std::uniform_int_distribution<> dis(0, equippedItems.size() - 1);
             uint32 randomGearId = equippedItems[dis(gen)];
 
-            // Create a new item template instance (unbound)
             ItemTemplate const* itemTemplate = sObjectMgr->GetItemTemplate(randomGearId);
             if (itemTemplate)
             {
@@ -398,10 +398,10 @@ public:
             }
         }
 
-        // Update loot state and generate for winner
+        // Update loot state and prepare for winner
         loot->unlootedCount = loot->items.size();
-        loot->GenerateLoot(winner); // Generate loot for the winner explicitly
-        corpse->SetFlag(CORPSE_FIELD_FLAGS, CORPSE_FLAG_LOOTABLE | CORPSE_FLAG_VISITED); // Ensure lootable
+        loot->FillNotNormalLootFor(winner); // Prepare custom loot for the winner
+        corpse->SetFlag(CORPSE_FIELD_FLAGS, CORPSE_FLAG_LOOTABLE);
 
         // Debug loot contents
         std::string lootContents = "Corpse loot contents: ";
