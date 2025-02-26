@@ -393,7 +393,7 @@ public:
 
         // Finalize loot and corpse state
         loot->unlootedCount = loot->items.size();
-        corpse->ResetFlags(CORPSE_FIELD_FLAGS); // Clear existing flags
+        corpse->RemoveFlag(CORPSE_FIELD_FLAGS, 0xFFFFFFFF); // Clear all flags
         corpse->SetFlag(CORPSE_FIELD_FLAGS, CORPSE_FLAG_LOOTABLE); // Ensure lootable
 
         // Debug loot state
