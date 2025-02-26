@@ -362,8 +362,9 @@ public:
         // Add the Emblem of Frost
         LootStoreItem emblemLoot(config.loot_item_id, false, 100.0f, false, 1, 0, config.loot_item_count, config.loot_item_count);
         loot->AddItem(emblemLoot);
+        Log::instance()->outMessage("module", LogLevel::LOG_LEVEL_INFO, "Emblem of Frost added: " + std::to_string(config.loot_item_id));
 
-        // Add random gear (create a fresh, unbound instance)
+        // Add random gear
         std::vector<uint32> equippedItems;
         for (uint8 slot = EQUIPMENT_SLOT_START; slot < EQUIPMENT_SLOT_END; ++slot)
         {
@@ -383,33 +384,26 @@ public:
             ItemTemplate const* itemTemplate = sObjectMgr->GetItemTemplate(randomGearId);
             if (itemTemplate)
             {
-                LootItem gearLoot;
-                gearLoot.itemid = randomGearId;
-                gearLoot.count = 1;
-                gearLoot.randomPropertyId = 0;
-                gearLoot.is_looted = false;
-                gearLoot.needs_quest = false;
-                gearLoot.freeforall = false;
-                gearLoot.follow_loot_rules = false; // Ignore binding rules
-                loot->items.push_back(gearLoot);
-
+                LootStoreItem gearLoot(randomGearId, false, 100.0f, false, 1, 0, 1, 1);
+                loot->AddItem(gearLoot);
                 std::string gearMsg = "Random gear added to corpse: Item " + std::to_string(randomGearId);
                 Log::instance()->outMessage("module", LogLevel::LOG_LEVEL_INFO, gearMsg.c_str());
             }
         }
 
-        // Update loot state and prepare for winner
+        // Finalize loot and corpse state
         loot->unlootedCount = loot->items.size();
-        loot->FillNotNormalLootFor(winner); // Prepare custom loot for the winner
-        corpse->SetFlag(CORPSE_FIELD_FLAGS, CORPSE_FLAG_LOOTABLE);
+        corpse->ResetFlags(CORPSE_FIELD_FLAGS); // Clear existing flags
+        corpse->SetFlag(CORPSE_FIELD_FLAGS, CORPSE_FLAG_LOOTABLE); // Ensure lootable
 
-        // Debug loot contents
+        // Debug loot state
         std::string lootContents = "Corpse loot contents: ";
         for (const auto& item : loot->items)
         {
             lootContents += std::to_string(item.itemid) + " (count: " + std::to_string(item.count) + ") ";
         }
         Log::instance()->outMessage("module", LogLevel::LOG_LEVEL_INFO, lootContents.c_str());
+        Log::instance()->outMessage("module", LogLevel::LOG_LEVEL_INFO, "Corpse flags: " + std::to_string(corpse->GetFlags()) + ", unlootedCount: " + std::to_string(loot->unlootedCount));
 
         ChatHandler winnerHandle(winner->GetSession());
         winnerHandle.PSendSysMessage("[pvp_zones] You gained %u point(s) and loot!", pointsAwarded);
