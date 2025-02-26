@@ -12,6 +12,7 @@
 #include "Log.h"
 #include "Corpse.h"
 #include "LootMgr.h"
+#include "GameObject.h"
 #include <algorithm>
 #include <iterator>
 #include <map>
@@ -27,6 +28,8 @@ struct Config
     uint32 kill_points = 10;
     uint32 loot_item_id = 49426; // Emblem of Frost
     uint32 loot_item_count = 1;
+    uint32 chest_id = 179697; // Chest GameObject ID
+    uint32 chest_despawn = 120; // Chest despawn time in seconds
 
     std::unordered_map<uint32 /* zone */, std::vector<uint32> /* areas */> ids = {{267, {272}}}; // Tarren Mill
 
@@ -48,8 +51,6 @@ struct Config
     float last_event = 0;
     float event_delay = 10.0f;
     float event_lasts = 1800.0f;
-
-    std::map<ObjectGuid /*loser*/, std::tuple<ObjectGuid /*winner*/, uint32 /*points*/, uint32 /*area*/, uint32 /*gearId*/>> killData;
 };
 
 Config config;
@@ -69,11 +70,15 @@ public:
         config.event_lasts = sConfigMgr->GetOption<float>("pvp_zones.EventLasts", 1800.0f);
         config.loot_item_id = sConfigMgr->GetOption<uint32>("pvp_zones.LootItemId", 49426);
         config.loot_item_count = sConfigMgr->GetOption<uint32>("pvp_zones.LootItemCount", 1);
+        config.chest_id = sConfigMgr->GetOption<uint32>("pvp_zones.ChestID", 179697);
+        config.chest_despawn = sConfigMgr->GetOption<uint32>("pvp_zones.ChestTimer", 120);
         std::string msg = "Config loaded: enabled=" + std::to_string(config.enabled ? 1 : 0) +
                           ", kill_goal=" + std::to_string(config.kill_goal) +
                           ", delay=" + std::to_string(config.event_delay) +
                           ", loot_item=" + std::to_string(config.loot_item_id) +
-                          ", loot_count=" + std::to_string(config.loot_item_count);
+                          ", loot_count=" + std::to_string(config.loot_item_count) +
+                          ", chest_id=" + std::to_string(config.chest_id) +
+                          ", chest_despawn=" + std::to_string(config.chest_despawn);
         Log::instance()->outMessage("module", LogLevel::LOG_LEVEL_INFO, msg.c_str());
     }
 };
@@ -139,11 +144,112 @@ public:
         config.area_players.erase(std::remove(config.area_players.begin(), config.area_players.end(), player), config.area_players.end());
         config.zone_players.erase(std::remove(config.zone_players.begin(), config.zone_players.end(), player), config.zone_players.end());
         config.points.erase(player);
-        config.killData.erase(player->GetGUID());
         std::string msg = "Player " + player->GetName() + " logged out";
         Log::instance()->outMessage("module", LogLevel::LOG_LEVEL_INFO, msg.c_str());
     }
 
+    void OnPVPKill(Player* winner, Player* loser) override
+    {
+        std::string killMsg = "PvP kill: winner=" + winner->GetName() + ", loser=" + loser->GetName() + ", zone=" + std::to_string(winner->GetZoneId()) + ", area=" + std::to_string(winner->GetAreaId());
+        Log::instance()->outMessage("module", LogLevel::LOG_LEVEL_INFO, killMsg.c_str());
+
+        if (!config.active || winner->GetZoneId() != config.current_zone)
+        {
+            Log::instance()->outMessage("module", LogLevel::LOG_LEVEL_INFO, "Kill ignored: inactive or wrong zone");
+            return;
+        }
+
+        uint32 pointsAwarded = config.kill_points;
+        if (winner->GetAreaId() == config.current_area)
+        {
+            pointsAwarded *= 2;
+        }
+
+        config.points[winner] = config.points[winner] + pointsAwarded;
+        if (config.points[loser] >= pointsAwarded)
+        {
+            config.points[loser] -= pointsAwarded;
+        }
+        else
+        {
+            config.points[loser] = 0;
+        }
+
+        // Spawn chest at loser's position
+        if (GameObject* chest = winner->SummonGameObject(config.chest_id, loser->GetPositionX(), loser->GetPositionY(), loser->GetPositionZ(), loser->GetOrientation(), 0.0f, 0.0f, 0.0f, 0.0f, config.chest_despawn, false))
+        {
+            winner->AddGameObject(chest);
+            chest->SetOwnerGUID(ObjectGuid::Empty); // Allow anyone to loot
+
+            // Add Emblem of Frost
+            LootStoreItem emblemLoot(config.loot_item_id, false, 100.0f, false, 1, 0, config.loot_item_count, config.loot_item_count);
+            chest->loot.AddItem(emblemLoot);
+            Log::instance()->outMessage("module", LogLevel::LOG_LEVEL_INFO, "Emblem of Frost added to chest: " + std::to_string(config.loot_item_id));
+
+            // Select and add random gear
+            std::vector<uint32> equippedItems;
+            for (uint8 slot = EQUIPMENT_SLOT_START; slot < EQUIPMENT_SLOT_END; ++slot)
+            {
+                if (Item* item = loser->GetItemByPos(INVENTORY_SLOT_BAG_0, slot))
+                {
+                    equippedItems.push_back(item->GetEntry());
+                }
+            }
+
+            uint32 randomGearId = 0;
+            if (!equippedItems.empty())
+            {
+                std::random_device rd;
+                std::mt19937 gen(rd());
+                std::uniform_int_distribution<> dis(0, equippedItems.size() - 1);
+                randomGearId = equippedItems[dis(gen)];
+            }
+            else
+            {
+                randomGearId = 25; // Fallback to Copper Ore
+            }
+
+            LootStoreItem gearLoot(randomGearId, false, 100.0f, false, 1, 0, 1, 1);
+            chest->loot.AddItem(gearLoot);
+            Log::instance()->outMessage("module", LogLevel::LOG_LEVEL_INFO, "Gear item added to chest: Item " + std::to_string(randomGearId));
+
+            // Debug chest loot state
+            std::string lootContents = "Chest loot contents: ";
+            for (const auto& item : chest->loot.items)
+            {
+                lootContents += std::to_string(item.itemid) + " (count: " + std::to_string(item.count) + ") ";
+            }
+            Log::instance()->outMessage("module", LogLevel::LOG_LEVEL_INFO, lootContents.c_str());
+        }
+        else
+        {
+            Log::instance()->outMessage("module", LogLevel::LOG_LEVEL_ERROR, "Failed to spawn chest");
+        }
+
+        ChatHandler(winner->GetSession()).PSendSysMessage("[pvp_zones] You gained %u point(s) and loot! Check the chest!", pointsAwarded);
+        ChatHandler(loser->GetSession()).PSendSysMessage("[pvp_zones] You lost %u point(s) and a piece of gear!", pointsAwarded);
+
+        config.kill_goal--;
+        if (config.kill_goal <= 0)
+        {
+            ChatHandler handler(winner->GetSession());
+            handler.SendGlobalSysMessage("[pvp_zones] Event ended: goal reached!");
+            EndEvent(&handler);
+        }
+
+        if (config.kill_goal % 5 == 0)
+        {
+            ChatHandler handler(winner->GetSession());
+            PostLeaderBoard(&handler);
+        }
+    }
+
+    void OnPlayerReleasedGhost(Player* player) override
+    {
+        // No longer needed for loot setup, but kept for cleanup
+    }
+
+private:
     void PostLeaderBoard(ChatHandler* handler)
     {
         handler->SendGlobalSysMessage("PvP Zones Leaderboard:");
@@ -256,166 +362,7 @@ public:
         config.points.clear();
         config.area_players.clear();
         config.zone_players.clear();
-        config.killData.clear();
         Log::instance()->outMessage("module", LogLevel::LOG_LEVEL_INFO, "Event ended");
-    }
-
-    void OnPVPKill(Player* winner, Player* loser) override
-    {
-        std::string killMsg = "PvP kill: winner=" + winner->GetName() + ", loser=" + loser->GetName() + ", zone=" + std::to_string(winner->GetZoneId()) + ", area=" + std::to_string(winner->GetAreaId());
-        Log::instance()->outMessage("module", LogLevel::LOG_LEVEL_INFO, killMsg.c_str());
-
-        if (!config.active || winner->GetZoneId() != config.current_zone)
-        {
-            Log::instance()->outMessage("module", LogLevel::LOG_LEVEL_INFO, "Kill ignored: inactive or wrong zone");
-            return;
-        }
-
-        uint32 pointsAwarded = config.kill_points;
-        if (winner->GetAreaId() == config.current_area)
-        {
-            pointsAwarded *= 2;
-        }
-
-        config.points[winner] = config.points[winner] + pointsAwarded;
-        if (config.points[loser] >= pointsAwarded)
-        {
-            config.points[loser] -= pointsAwarded;
-        }
-        else
-        {
-            config.points[loser] = 0;
-        }
-
-        // Select random gear from loser's equipment
-        std::vector<uint32> equippedItems;
-        for (uint8 slot = EQUIPMENT_SLOT_START; slot < EQUIPMENT_SLOT_END; ++slot)
-        {
-            if (Item* item = loser->GetItemByPos(INVENTORY_SLOT_BAG_0, slot))
-            {
-                equippedItems.push_back(item->GetEntry());
-            }
-        }
-
-        uint32 randomGearId = 0;
-        if (!equippedItems.empty())
-        {
-            std::random_device rd;
-            std::mt19937 gen(rd());
-            std::uniform_int_distribution<> dis(0, equippedItems.size() - 1);
-            randomGearId = equippedItems[dis(gen)];
-        }
-        else
-        {
-            randomGearId = 25; // Fallback to Copper Ore if no gear
-        }
-
-        // Store kill data with gear ID
-        config.killData[loser->GetGUID()] = std::make_tuple(winner->GetGUID(), pointsAwarded, winner->GetAreaId(), randomGearId);
-
-        // Log loser's gear before death
-        std::string loserGearMsg = "Loser gear before death: ";
-        for (uint8 slot = EQUIPMENT_SLOT_START; slot < EQUIPMENT_SLOT_END; ++slot)
-        {
-            if (Item* item = loser->GetItemByPos(INVENTORY_SLOT_BAG_0, slot))
-            {
-                loserGearMsg += std::to_string(item->GetEntry()) + " ";
-            }
-            else
-            {
-                loserGearMsg += "0 ";
-            }
-        }
-        Log::instance()->outMessage("module", LogLevel::LOG_LEVEL_INFO, loserGearMsg.c_str());
-
-        config.kill_goal--;
-        if (config.kill_goal <= 0)
-        {
-            ChatHandler handler(winner->GetSession());
-            handler.SendGlobalSysMessage("[pvp_zones] Event ended: goal reached!");
-            EndEvent(&handler);
-        }
-
-        if (config.kill_goal % 5 == 0)
-        {
-            ChatHandler handler(winner->GetSession());
-            PostLeaderBoard(&handler);
-        }
-    }
-
-    void OnPlayerReleasedGhost(Player* player) override
-    {
-        auto it = config.killData.find(player->GetGUID());
-        if (it == config.killData.end())
-            return;
-
-        ObjectGuid winnerGuid;
-        uint32 pointsAwarded, killArea, gearId;
-        std::tie(winnerGuid, pointsAwarded, killArea, gearId) = it->second;
-
-        Player* winner = ObjectAccessor::FindPlayer(winnerGuid);
-        if (!winner)
-        {
-            Log::instance()->outMessage("module", LogLevel::LOG_LEVEL_INFO, "Winner not found for loot assignment");
-            config.killData.erase(it);
-            return;
-        }
-
-        if (killArea != config.current_area)
-        {
-            Log::instance()->outMessage("module", LogLevel::LOG_LEVEL_INFO, "Kill outside event area (" + std::to_string(killArea) + "), skipping loot");
-            config.killData.erase(it);
-            return;
-        }
-
-        Corpse* corpse = player->GetCorpse();
-        if (!corpse || !corpse->IsInWorld())
-        {
-            Log::instance()->outMessage("module", LogLevel::LOG_LEVEL_INFO, "No valid corpse found for loot after ghost release");
-            config.killData.erase(it);
-            return;
-        }
-
-        Loot* loot = &corpse->loot;
-        loot->clear(); // Reset loot
-        loot->loot_type = LOOT_CORPSE;
-        loot->gold = 0;
-        loot->lootOwnerGUID = winner->GetGUID();
-
-        // Log flags before changes
-        uint32 initialFlags = corpse->GetUInt32Value(CORPSE_FIELD_FLAGS);
-        Log::instance()->outMessage("module", LogLevel::LOG_LEVEL_INFO, "Corpse flags before: " + std::to_string(initialFlags));
-
-        // Add the Emblem of Frost
-        LootStoreItem emblemLoot(config.loot_item_id, false, 100.0f, false, 1, 0, config.loot_item_count, config.loot_item_count);
-        loot->AddItem(emblemLoot);
-        Log::instance()->outMessage("module", LogLevel::LOG_LEVEL_INFO, "Emblem of Frost added: " + std::to_string(config.loot_item_id));
-
-        // Add the selected gear or test item
-        LootStoreItem gearLoot(gearId, false, 100.0f, false, 1, 0, 1, 1);
-        loot->AddItem(gearLoot);
-        Log::instance()->outMessage("module", LogLevel::LOG_LEVEL_INFO, "Gear item added: Item " + std::to_string(gearId));
-
-        // Finalize loot and corpse state
-        loot->unlootedCount = loot->items.size();
-        loot->FillNotNormalLootFor(winner); // Prepare loot for winner
-        corpse->SetFlag(CORPSE_FIELD_FLAGS, CORPSE_FLAG_LOOTABLE);
-
-        // Debug loot state
-        std::string lootContents = "Corpse loot contents: ";
-        for (const auto& item : loot->items)
-        {
-            lootContents += std::to_string(item.itemid) + " (count: " + std::to_string(item.count) + ") ";
-        }
-        Log::instance()->outMessage("module", LogLevel::LOG_LEVEL_INFO, lootContents.c_str());
-        Log::instance()->outMessage("module", LogLevel::LOG_LEVEL_INFO, "Corpse flags after set: " + std::to_string(corpse->GetUInt32Value(CORPSE_FIELD_FLAGS)) + ", unlootedCount: " + std::to_string(loot->unlootedCount));
-
-        ChatHandler winnerHandle(winner->GetSession());
-        winnerHandle.PSendSysMessage("[pvp_zones] You gained %u point(s) and loot!", pointsAwarded);
-        ChatHandler loserHandle(player->GetSession());
-        loserHandle.PSendSysMessage("[pvp_zones] You lost %u point(s) and a piece of gear!", pointsAwarded);
-
-        config.killData.erase(it);
     }
 };
 
